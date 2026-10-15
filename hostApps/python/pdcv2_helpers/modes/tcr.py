@@ -9,13 +9,12 @@ If the scan thread fails, it stops and the error is re-raised in the main thread
 """
 from __future__ import annotations
 import datetime
-import os.path as osp
 import threading
 import time
 from enum import IntEnum
 import numpy as np
 from ..config import dump
-from ..paths import bias_str, head_str, tag_voltage, tcr_data_dir
+from ..paths import bias_str, head_str, run_dir, tag_voltage
 from ..session import section
 from .base import Mode
 from .tcr_plotter import TcrPlotter
@@ -40,12 +39,15 @@ class TcrMode(Mode):
         self.scan_error: BaseException | None = None
         self.meas_time = float(self.cfg["tcr"]["meas_time_s"])
         self.test_stop_time: float | None = None
+        self.tmp_h5: Path | None = None
 
     def prepare_data_path(self) -> None:
-        """Start the Zynq platform - nothing else for TCR"""
+        """Start the Zynq platform. The per-SPAD HDF5 files are read and deleted right away, so they go in a hidden folder inside the run folder"""
         s = self.session
         section("prepare Zynq platform")
-        s.zynq.hexAppOutPathDefault = osp.join(str(s.paths.hdf5), self.cfg["behavior"]["script_tag"])
+        self.tmp_h5 = run_dir(self.cfg, s.paths) / ".tmp_h5"
+        self.tmp_h5.mkdir(parents=True, exist_ok=True)
+        s.zynq.hexAppOutPathDefault = str(self.tmp_h5)
         s.zynq.init()
 
     def configure(self) -> None:
@@ -162,7 +164,7 @@ class TcrMode(Mode):
         section("start the FSM (command triggered)")
         s.send("fsm_command")
 
-        data_dir = tcr_data_dir(cfg, s.paths)
+        data_dir = run_dir(cfg, s.paths)
         self.tp = tp = TcrPlotter(figName="TCR PLOTTER", nPdcMax=icp.nPdcMax, nSpad=icp.nSpad,
                                   data_path=data_dir, meas_time_s=self.meas_time,
                                   head_str=head_str(r.get("head_id")), bias_str=bias_str(tag_voltage(r)),
@@ -240,6 +242,11 @@ class TcrMode(Mode):
             self.tp.closePlot()
         super().finish()
         s.close()
+        if self.tmp_h5 is not None:
+            try:
+                self.tmp_h5.rmdir()   # only removes it when empty, leftover files are kept
+            except OSError:
+                pass
         if self.tp is not None:
             section("Save configuration values")
             out = self.tp.dataPath / f"{self.tp.getFileName()}{self.tp.name}_config.yaml"

@@ -19,6 +19,7 @@ Each supply in hardware.yaml also gets the commands of its model from configs/su
 """
 from __future__ import annotations
 import copy
+import re
 from pathlib import Path
 from typing import Iterable, Optional
 import yaml
@@ -168,9 +169,24 @@ def validate(cfg: dict) -> None:
     check("dsum.bin_idx_mode", lambda v: v in _BIN_IDX, f"one of {_BIN_IDX}")
     check("hardware.zynq.ssh_host", lambda v: isinstance(v, str) and v, "the host name from ~/.ssh/config")
     check("hardware.zynq.sys_clk_period_ns", lambda v: isinstance(v, (int, float)) and v > 0, "a positive number")
-    check("behavior.script_tag", lambda v: isinstance(v, str) and v, "a short name used in data folders and file names")
+    check("run.run_folder", lambda v: isinstance(v, str) and v.strip() not in ("", ".", "..") and not re.search(r"[\\/]", v),
+          "a folder name for this run, such as tcr_10152026. It is made inside hardware.paths.user_data_dir")
+    if isinstance(cfg.get("run"), dict) and "run_folder" in cfg["run"] and cfg["run"]["run_folder"] is None:
+        problems.append("'run.run_folder' is empty: set a folder name for this run, such as tcr_10152026")
     check("pdc", lambda v: isinstance(v, dict), "a section of PDC register values")
     check("controller", lambda v: isinstance(v, dict), "a section of controller register values")
+
+    # Check that tcr file is a full filename
+    if cfg.mode.startswith("dsum") and cfg.get("pixels", {}).get("source") == "tcr_file":
+        f = cfg["pixels"].get("tcr_file")
+        if not f:
+            problems.append("'pixels.tcr_file' is empty: set the full path to the TCR csv, or set pixels.source to 'all'")
+        else:
+            tcr = Path(str(f)).expanduser()
+            if not tcr.is_absolute():
+                problems.append(f"'pixels.tcr_file' = {f!r}: expected a full path")
+            elif not tcr.is_file():
+                problems.append(f"'pixels.tcr_file' = {str(tcr)!r}: file not found")
 
     if cfg.get("run", {}).get("analog_only") and not cfg.get("behavior", {}).get("allow_analog_only"):
         problems.append("'run.analog_only' is true, but this mode does not support it (behavior.allow_analog_only is false)")

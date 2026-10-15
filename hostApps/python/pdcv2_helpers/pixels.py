@@ -69,7 +69,7 @@ def load_tcr(cfg: dict, paths):
     px = cfg["pixels"]
     if px["source"] == "all":
         return None
-    path = resolve_tcr_file(px.get("tcr_file"), paths)
+    path = resolve_tcr_file(px.get("tcr_file"), cfg, paths)
     print(f"TCR file: {path}")
     return pd.read_csv(path, header=0, sep=";")
 

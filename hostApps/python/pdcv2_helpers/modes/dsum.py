@@ -14,7 +14,7 @@ import os
 import time
 from pathlib import Path
 from ..config import dump
-from ..paths import dsum_csv_dir, dsum_file_name
+from ..paths import dsum_file_name, run_dir
 from ..pixels import apply_dsum_pixels
 from ..session import section
 from .base import Mode
@@ -23,7 +23,7 @@ from .base import Mode
 class DsumMode(Mode):
     def __init__(self, session):
         super().__init__(session)
-        self.csv_dir: Path | None = None
+        self.run_dir: Path | None = None
         self.csv_file: Path | None = None
         self.stats_file: Path | None = None
         self.analog_only = bool(self.cfg["run"]["analog_only"])
@@ -40,17 +40,20 @@ class DsumMode(Mode):
         zynq.cleanDataPath()
         zynq.initDataReader(dataReaderLaunch=True)
 
-        self.csv_dir = dsum_csv_dir(cfg, s.paths)
+        self.run_dir = run_dir(cfg, s.paths)
         file_name = dsum_file_name(cfg)
-        self.csv_file = self.csv_dir / file_name
+        self.csv_file = self.run_dir / file_name
         self.stats_file = self.csv_file.with_suffix(".txt")
-        os.makedirs(self.csv_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        # hexRead has two output paths: the general one (-o, used for the h5) and the dsum module one (-o after -M dsum,
+        # used for the csv). Both point at the run folder so the csv and h5 end up together.
+        zynq.hexAppOutPathDefault = str(self.run_dir)
         print(f"Writing CSV to {self.csv_file}")
 
         # Start digital return from the zynq
         if not self.analog_only:
             zynq.initHex(autoStart=True, archive=False, printParsed=False, exportH5=bool(b["export_h5"]),
-                         hexReadExtraArgs=f"-M dsum -o {self.csv_dir} -f {file_name} "
+                         hexReadExtraArgs=f"-M dsum -o {self.run_dir} -f {file_name} "
                                           f"-b {d['bin_idx_mode']} -t {d['data_type']} ")
 
         section("save configuration values")

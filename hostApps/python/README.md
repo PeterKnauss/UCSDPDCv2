@@ -12,7 +12,7 @@ The scripts live in `hostApps/python` next to `pdcv2_modules`. `setupHosts/setup
 
 ## Use
 
-    python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.rad_source=Co57
+    python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.run_folder=Co57_10152026
     python run_dsum_coincidence.py --run my_run.yaml
     python run_tcr.py tcr.meas_time_s=0.5 run.n_spad=64
     python run_dsum_rad.py --batch          # no prompts, no figure window
@@ -77,7 +77,7 @@ To add a supply: connect to it with pyvisa and try the commands by hand, copy th
 
 One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital sum with a radiation source) and `dsum_coincidence` (digital sum when several PDCs hit in the coincidence window). Each one is self contained, nothing is shared between them, so values repeated in the three files are on purpose. The mode is picked by the script you run. Each file has three sections:
 
-- `behavior` - Choices that are not registers. `script_tag` is added to file names and data folders. `csv_dir` is the folder for the DSUM CSV files inside the user data folder (`{rad_source}` is replaced with run.rad_source). `export_h5` creates an h5 file. `clear_hexread` runs clearHexRead() on startup. `power_supplies` ramps the supplies in hardware.yaml automatically, and false asks you to apply HV by hand. `per_pdc_pixel_off` uses the manual PDC masking in run.yaml. `allow_analog_only` allows analog only mode. `pdc_pix_dis_args` is added to the end of the `pdcPix --dis` command. `zpp_period_from_meas_time` (TCR only) sets the ZPP wait time to the measurement time.
+- `behavior` - Choices that are not registers. `export_h5` creates an h5 file in the run folder (DSUM). `clear_hexread` runs clearHexRead() on startup. `power_supplies` ramps the supplies in hardware.yaml automatically, and false asks you to apply HV by hand. `per_pdc_pixel_off` uses the manual PDC masking in run.yaml. `allow_analog_only` allows analog only mode. `pdc_pix_dis_args` is added to the end of the `pdcPix --dis` command. `zpp_period_from_meas_time` (TCR only) sets the ZPP wait time to the measurement time.
 - `pdc` - Register values written to every PDC: `time` (hold, recharge and flag times in ns), `PIXL`, `ANLG`, `STHL`, `FIFO`, `OUTD`, `OUTF`, `TRGC` and `OUTC`. The names are the register names.
 - `controller` - Register values of the Controller and the commands run on the Zynq. `packet` is what data is sent, `fsm` is the acquisition timing (samples, trigger mode, timeout, end, tx), `interfaces` and `coincidence` are the interface and coincidence registers, and `apps` are the Zynq commands like streamManager, auxOut and auxIn.
 
@@ -85,12 +85,25 @@ One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital s
 
 Edit it between runs. It is the same for every mode.
 
-- `run` - `head_id` is the head used. `supply_V` is the voltage for each supply in hardware.yaml (same names). `spad_supply` is the supply that biases the SPADs. Its voltage is used in the file name, and empty means no voltage in the file name. `name` is added to the end of the file name. `rad_source` is the source name used in the file name. `meas_time_s` is the time of a DSUM measurement. `pdc_enable` is which PDCs to enable (hex mask, `0xF` is all). `n_spad` is the number of SPADs per PDC. `analog_only`, `save_plot` and `batch_mode` turn on analog only mode, save the output plot and remove user input.
-- `pixels` - Which SPADs are on for DSUM. `source: tcr_file` finds screamers from the TCR file in `tcr_file` (a full path or a file name in the TCR folder) and `source: all` turns off screamer masking. `screamer` picks how to find screamers: `method` is constant, average, percent, medianFactor or medianToMin, and `threshold`, `percent` and `factor` are the numbers the method uses. `mask` is the area that is on (`cx`, `cy`, `width`, `height`, and `checker` for a checkerboard). `show_mask` shows the mask at the start. `per_pdc_off` are areas to turn off in each PDC when `per_pdc_pixel_off` is true.
+- `run` - `run_folder` is the folder this run is saved in, made inside `hardware.paths.user_data_dir` (for example `tcr_10152026`). It is required, and the run stops with a config error when it is empty. Everything a run writes goes in this folder. `head_id` is the head used. `supply_V` is the voltage for each supply in hardware.yaml (same names). `spad_supply` is the supply that biases the SPADs. Its voltage is used in the file name, and empty means no voltage in the file name. `name` is added to the end of the file name. `meas_time_s` is the time of a DSUM measurement. `pdc_enable` is which PDCs to enable (hex mask, `0xF` is all). `n_spad` is the number of SPADs per PDC. `analog_only`, `save_plot` and `batch_mode` turn on analog only mode, save the output plot and remove user input.
+- `pixels` - Which SPADs are on for DSUM. `source: tcr_file` finds screamers from the TCR file in `tcr_file` (a full path str) and `source: all` turns off screamer masking. `screamer` picks how to find screamers: `method` is constant, average, percent, medianFactor or medianToMin, and `threshold`, `percent` and `factor` are the numbers the method uses. `mask` is the area that is on (`cx`, `cy`, `width`, `height`, and `checker` for a checkerboard). `show_mask` shows the mask at the start. `per_pdc_off` are areas to turn off in each PDC when `per_pdc_pixel_off` is true.
 - `tcr` - `meas_time_s` is the time per TCR measurement. `screamer` is the same as above but for TCR.
 - `dsum` - Options for the dsum module of hexRead. `data_type` is all, NZ, NZKF, dt or max and `bin_idx_mode` is time, continuous or frame.
 
 Use `--run FILE` to run with a different run file, so you can keep one for each setup.
+
+### Where data goes
+
+`hardware.paths.user_data_dir` is the parent of all data (empty uses the `USER_DATA_DIR` environment variable). Each run writes into its own folder inside it, named by `run.run_folder`:
+
+    <user_data_dir>/<run_folder>/
+        <date>_<mode>_...csv                  DSUM data, or <date>_TCR_...csv for a TCR scan
+        <same name>.h5                        DSUM with behavior.export_h5
+        <same name>.txt, _config.yaml         pixel enabling log and the config used
+        <same name>_pixelMap_<n>.png          the mask of each PDC
+        PNG/                                  TCR plots
+
+A TCR scan reads and deletes one HDF5 file per SPAD. Those go in `.tmp_h5/` inside the run folder, which is removed when the scan finishes. Use the same `run_folder` for a TCR scan and the DSUM runs that use it
 
 ### Command line
 

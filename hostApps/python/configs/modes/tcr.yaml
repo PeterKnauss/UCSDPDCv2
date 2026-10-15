@@ -1,5 +1,4 @@
 behavior:                  
-  script_tag: ""                    # Str  - Tag appended to filenames
   zpp_period_from_meas_time: true   # Bool - Required for TCR. Sets the wait time for ZPP data ACQ to be the same as measurement time
   clear_hexread: true               # Bool - run clearHexRead() on session startup
   power_supplies: true              # Bool - Initialize power supplies automatically

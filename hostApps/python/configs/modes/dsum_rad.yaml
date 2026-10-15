@@ -1,6 +1,4 @@
 behavior:
-  script_tag: ""                  # Str  - Tag appended to filenames
-  csv_dir: "DSUM_CSV_3D_{rad_source}"   # Str  - File folder within user data folder
   export_h5: true                       # Bool - Create an H5 file
   clear_hexread: true                   # Bool - run clearHexRead() on session startup
   power_supplies: true                  # Bool - Initialize power supplies automatically

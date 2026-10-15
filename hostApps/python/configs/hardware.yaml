@@ -4,8 +4,7 @@ zynq:
   cfg_data_delay: 300         # Int - Delay for PDC configuration signal
 
 paths:
-  user_data_dir: null         # Str - Folder location for user data
-  hdf5_dir: null              # Str - Folder location for temporary HDF5 files made by TCR
+  user_data_dir: null         # Str - Parent folder of all data. Each run makes its own folder (run.run_folder) inside it. Empty uses the USER_DATA_DIR environment variable
 
 supplies:                     # Power supplies - Ramp up in this order and ramp down in reverse. Voltages are in run.yaml
   bk:                         # Identification and information for the BK supply
