@@ -107,7 +107,7 @@ def apply_dsum_pixels(session, stats_file: Optional[Path] = None, plot_prefix: O
                     pixArray=pix_array, thMethod=th_method, thOp=pdcSpadFunctions.ThreshOp.le,
                     pixEnMask=mask, returnAnalysis=False, log=False, plot=plot, **kw)
                 if px.get("show_mask") and not cfg["run"]["batch_mode"]:
-                    _show_mask(mask)
+                    _show_mask(mask, i_pdc)
                 icp.cfgAllPixRegs(regs, i_pdc)
             except KeyError:
                 print(f"ERROR: no data found for PDC {i_pdc}.")
@@ -118,11 +118,15 @@ def apply_dsum_pixels(session, stats_file: Optional[Path] = None, plot_prefix: O
             stats.close()
     client.runPrint("ctlCfg -a CFGS -r 0x0000 -g")
 
-def _show_mask(mask: np.ndarray) -> None:
-    """Prints out the mask before a run starts"""
+def _show_mask(mask: np.ndarray, i_pdc: int | None = None) -> None:
+    """Shows the enable mask before a run starts"""
     import matplotlib.colors as mcolors
     import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
     cmap = mcolors.LinearSegmentedColormap.from_list("BlackWhite", [(0, "black"), (1, "white")])
-    plt.ion()
-    plt.figure()
-    plt.imshow(mask.T, cmap=cmap, origin="lower", aspect="equal")
+    ax.imshow(mask.T, cmap=cmap, vmin=0, vmax=1, origin="lower", aspect="equal")
+    ax.set_title(f"PDC{i_pdc} enable mask")
+    plt.show(block=False)
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+    fig.canvas.start_event_loop(0.1)

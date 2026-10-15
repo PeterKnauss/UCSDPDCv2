@@ -1,11 +1,11 @@
 behavior:
-  script_tag: dsum_coincidence        # Str  - Tag appended to filenames
+  script_tag: ""        # Str  - Tag appended to filenames
   csv_dir: DSUM_CSV_3D_coincidence    # Str  - File folder within user data folder
   export_h5: true                     # Bool - Create an h5 file 
-  clear_hexread: false                # Bool - Run clearHexRead() on session setup
-  power_supplies: false               # Bool - Initialize power supplies automatically
-  per_pdc_pixel_off: false            # Bool - Use manual pdc masking defined in run.yaml
-  allow_analog_only: false            # Bool - Allow analog only mode
+  clear_hexread: true                 # Bool - Run clearHexRead() on session setup
+  power_supplies: true                # Bool - Initialize power supplies automatically
+  per_pdc_pixel_off: true             # Bool - Use manual pdc masking defined in run.yaml
+  allow_analog_only: true             # Bool - Allow analog only mode
   pdc_pix_dis_args: "--mode NONE"     # Str  - Argument to append to the end of pdcPix --dis command
 
 pdc:
