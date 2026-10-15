@@ -1,0 +1,24 @@
+# Commands for the BK supply. {v} is the voltage being set. Any other {name} is a key in the supply of hardware.yaml
+terminations:                 # Characters at the end of each message
+  write: "\n"                 # Str - Added to everything sent
+  read: "\r\n"                # Str - Removed from every reply
+idn: "*IDN?"                  # Str - Query for the identification of the supply. The reply is printed when connected
+set_voltage: "SOUR:VOLT {v}"  # Str - Command to set the voltage
+health:                       # Check right after connecting
+  query: "STATUS?"            # Str - Query for the health of the supply
+  ok_contains: ["000000", "000001"]   # Str or list - Good if the reply has this text. A list is good if the reply has any of them
+  left_on:                    # Reply has this text - a previous run left something on. Checked first. Commands to turn it off
+    "000009": ["OUT OFF"]
+    "0000A1": ["PROT:OCP OFF", "PROT:OVP OFF"]
+    "0000A9": ["OUT OFF", "PROT:OCP OFF", "PROT:OVP OFF"]
+protect:                      # Protection limits sent while the output is off
+  - "PRO:OCP:LEV {ocp_A}"
+  - "PRO:OVP:LEV {ovp_V}"
+  - "PROT:OCP ON"
+  - "PROT:OVP ON"
+arm: ["OUT ON"]               # Sent before the ramp up
+disarm:                       # Sent after the ramp down
+  - "SOUR:VOLT 0.0"
+  - "OUT OFF"
+  - "PROT:OCP OFF"
+  - "PROT:OVP OFF"

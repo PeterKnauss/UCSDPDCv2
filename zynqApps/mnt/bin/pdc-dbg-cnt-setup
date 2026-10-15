@@ -1,0 +1,207 @@
+#!/bin/bash
+# Author: Tommy Rossignol
+# Date: 2023-12-19
+# Version: 1.04
+# Description:
+#    DISCLAIMER: This script is an example of what can be tested
+#        and is not fully garantied.
+#    Script to acquire the debug counter of the PDC to validate the data link.
+#    It is used to test the communication between the PDC and the Controller (CTL).
+#    It is used to test the CTL data packager module.
+#    It is used to test the direct memory access (DMA) to the DAQ computer.
+#    It is used to test the conversion from raw hexadecimal data file to HDF5 database.
+
+# validate the settings of the board
+boardInfo -l
+
+# set system clock frequency
+clkSet --freq 100 --MHz
+
+# number of ASIC available
+NUM_ASIC=$(($(boardInfo --numasic --raw)))
+
+echo ""
+echo "=============================="
+echo "=== Select the PDCs to use ==="
+echo "=============================="
+# PDC selection # NOTE select here which PDCs to use
+if [ $NUM_ASIC -eq 8 ]; then
+    # setting for 2x2 setup
+    #PDC_EN=0xFF # for 2x2 setup enable both heads, all PDCs
+    #PDC_EN=0x0F # for 2x2 setup enable head 0 only, all PDCs
+    #PDC_EN=0xF0 # for 2x2 setup enable head 1 only, all PDCs
+    PDC_EN=0xF; # NOTE modify here the PDCs to enable for 2x2 setup
+    printf "\e[32mPDC_EN=0x%02x\e[0m\n" "$PDC_EN"
+elif [ $NUM_ASIC -eq 32 ]; then
+    # setting for 8x8 setup
+    #PDC_EN=0xFFFFFFFF # for 8x8 setup, to enable all PDCs
+    PDC_EN=0xFFFFFFFF; # NOTE modify here the PDCs to enable for 8x8 setup
+    printf "\e[32mPDC_EN=0x%08x\e[0m\n" "$PDC_EN"
+fi
+
+echo ""
+echo "===================================="
+echo "=== Init the Controller and PDCs ==="
+echo "===================================="
+# get the IP ID of ctlCfg app
+ctlCfg --ipid
+
+# reset the controller
+ctlCmd -c RSTN_FULL
+
+echo ""
+echo "======================================="
+echo "=== Configure the Controller Packet ==="
+echo "======================================="
+# NOTE always set SCSA register first to store other configuration registers in HDF5
+# configure CFG_STATUS_A
+#ctlCfg -a SCSA -r 0x1007 -g
+#ctlCfg -a SCSA -r 0x0007 -g
+#ctlCfg -a SCSA -r 0x3007 -g
+#ctlCfg -a SCSA -r 0x2007 -g
+ctlCfg -a SCSA -r 0x7107 -g
+
+# configure CTL_DATA_A
+ctlCfg -a SCDA -r 0x0000 -g
+
+# configure PDC_DATA_A
+ctlCfg -a SPDA -r 0x0100 -g
+#ctlCfg -a SPDA -r 0x0000 -g
+
+# configure CTRL FSM (TOUT)
+ctlCfg -a TOUT -r 0x5030 -g
+
+# configure CTRL FSM (FEND)
+ctlCfg -a FEND -r 0x8200 -g
+
+# configure CTRL FSM (FTX1)
+ctlCfg -a FTX1 -r 0x0080 -g
+
+# configure CTRL FSM (FTX0)
+ctlCfg -a FTX0 -r 0x8600 -g
+
+# configure CTRL FSM (ATX1)
+ctlCfg -a ATX1 -r 0x0000 -g
+
+# configure CTRL FSM (ATX0)
+ctlCfg -a ATX0 -r 0x0000 -g
+
+# configure CTRL FSM (SLW1)
+ctlCfg -a SLW1 -r 0x0000 -g
+
+# configure CTRL FSM (SLW0)
+ctlCfg -a SLW0 -r 0x0000 -g
+
+# configure CTRL FSM (FST1)
+ctlCfg -a FST1 -r 0x0080 -g
+
+# configure CTRL FSM (FST0)
+ctlCfg -a FST0 -r 0x8600 -g
+
+# configure CTRL FSM (FACQ)
+ctlCfg -a FACQ -r 0x0007 -g
+
+# configure CTRL FSM (FSMM)
+ctlCfg -a FSMM -r 0x0111 -g
+
+echo ""
+echo "==================================="
+echo "=== Set delay of CFG_DATA pins ==="
+echo "==================================="
+CFG_DATA_DLY=300
+# get number of delay lines to configure
+ioDelaySet --signal CFG_DATA --reset; # reset all delay lines
+NUM_CFG_DATA=$(ioDelaySet --signal CFG_DATA -n | cut -d':' -f 2)
+for iCFG in $(seq 0 $((NUM_CFG_DATA-1))); do
+    ioDelaySet --signal CFG_DATA --sel $iCFG --count $CFG_DATA_DLY --get
+done
+
+
+echo ""
+echo "====================================="
+echo "=== Prepare to configure the PDCs ==="
+echo "====================================="
+# enable the PDCs
+ctlCfg -a PDC0 -r $((PDC_EN&0xFFFF)) -g
+ctlCfg -a PDC1 -r $(((PDC_EN>>16)&0xFFFF)) -g
+
+# select the PDCs to configure
+ctlCfg -a CFG0 -r $((PDC_EN&0xFFFF)) -g
+ctlCfg -a CFG1 -r $(((PDC_EN>>16)&0xFFFF)) -g
+
+# reset the PDCs
+ctlCfg -a PRST -r 0x0000 -g
+
+# release PDCs from reset
+if [ $NUM_ASIC -eq 8 ]; then
+    # using a 2x2 board setup
+    ctlCfg -a PRST -r $((PDC_EN&0xFFFF)) -g
+elif [ $NUM_ASIC -eq 32 ]; then
+    # using a 8x8 board setup
+    # only one reset pin
+    ctlCfg -a PRST -r 0x1 -g
+fi
+
+# get the IP ID of rtnEn app
+rtnEn --ipid
+
+if [ $NUM_ASIC -eq 8 ]; then
+    # using a 2x2 board setup
+
+    # use CFG_RTN_EN
+    rtnEn -e $PDC_EN -s
+
+    # validate the adaptors are turned on
+    EN=$(rtnEn -s | cut -d':' -f 2)
+    if [ $((EN)) -ne $((PDC_EN)) ]; then
+        printf "\e[1;31mThe proper adaptor board is not turned on, turn it on and restart the script\033[0m\n"
+        exit -1
+    fi
+elif [ $NUM_ASIC -eq 32 ]; then
+    # using a 8x8 board setup
+    # validate the proper adaptor is turned on
+    EN=$(rtnEn -s | cut -d':' -f 2)
+    EXP_PG=0
+    if [ $((PDC_EN&0xFFFF)) -ne 0 ]; then ((EXP_PG+=1)); fi
+    if [ $(((PDC_EN>>16)&0xFFFF)) -ne 0 ]; then ((EXP_PG+=2)); fi
+    if [ $((EN&EXP_PG)) -ne $((EXP_PG)) ]; then
+        printf "\e[1;31mThe proper adaptor board is not turned on, turn it on and restart the script\033[0m\n"
+        exit -1
+    fi
+fi
+
+# set PDCs into configuration mode
+ctlCmd -c MODE_CFG
+
+echo ""
+echo "=========================="
+echo "=== Configure the PDCs ==="
+echo "=========================="
+# get the IP ID of pdcCfg app
+pdcCfg --ipid
+
+# configure PDC PIXL
+pdcCfg -a PIXL -r 0x1102 -g
+
+# configure PDC TIME
+pdcTime --hold 150 --rech 10 --flag 4 -g
+
+# configure PDC DBGC
+pdcCfg -a DBGC -r 0x8000 -g
+
+# configure PDC FIFO
+pdcCfg -a FIFO -r 0x117f -g
+
+# configure PDC DTXC
+pdcCfg -a DTXC -r 0x00cc -g
+
+# set PDCs into acquisition mode
+ctlCmd -c MODE_ACQ
+
+echo ""
+echo "===================================================="
+echo "=== Sending the command to start a data transfer ==="
+echo "===================================================="
+ctlCmd -c FSM_START
+
+

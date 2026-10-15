@@ -1,0 +1,48 @@
+run:
+  head_id: 62         # Int   - ID for the head used
+  supply_V:           # Voltage each supply in hardware.yaml ramps to. Cannot be above max_V of the supply
+    bk: 250           # Float - Voltage for the BK supply
+    keysight: 25      # Float - Voltage for the Keysight supply
+  spad_supply: keysight       # Str - Supply that biases the SPADs. Its voltage is used in the filename. Empty for no voltage in the filename
+  name: ""            # Str   - Extra name to add to the end of filename 
+  rad_source: ""      # Str   - Rad source name. Used in filename
+  meas_time_s: 30     # FLoat - Time of measurement. Used in DSum measurements
+  pdc_enable: 0xF     # Hex   - Which PDCs to enable (Hex code referring to PDCs in binary. So 0x1 = PDC0, 0x2 = PDC1, 0x3 = PDC0+PDC1. 0xF = All PDCs)
+  n_spad: 4096        # Int   - Number of spads per PDC
+  analog_only: false  # Bool  - Turn on analog only mode
+  save_plot: false    # Bool  - Save output plot
+  batch_mode: false   # Bool  - Run Batch mode that removes user input
+
+pixels:
+  source: tcr_file    # Var - tcr_file | all - tcr_file pulls mask from designated tcr file. All turns off screamer masking
+  tcr_file: null      # Str - File to use for tcr_file for screamer masking
+  screamer:           # Defines screamer functionality for DSUM 
+    method: constant  # Str - constant | average | percent | medianFactor | medianToMin - Defines what method to determine screamers. 
+                      # Constant - uses Threshold; Average - AVG TCR of PDC; Percent - TCR percentile; MedianFactor - Factor*Median; MedianToMin - (2*median - min)  
+    threshold: 100.0
+    percent: 90.0
+    factor: 1.5
+  mask:               # Defines the mask if which pixels are turned on. Centers/heights/widths
+    cx: 32
+    cy: 32
+    width: 64
+    height: 64
+    checker: false    # When true a checkerboard is used so no pixels next to eachother are on. Useful for cross correlation tests.
+  show_mask: true     # Bool - Show the mask at the start of DSum runs
+  per_pdc_off:        # Areas of PDCs to manually turn off if pdc_pix_dis_args is True. Defined by {x: [start, stop], y: [start, stop]} with multiple entries for multiple rectangles
+                      # Null means to end of line
+    1: [{y: [58, null]}]
+    2: [{x: [0, 15]}, {y: [59, null]}]
+    3: [{x: [0, 16]}]
+
+tcr:
+  meas_time_s: 0.2   # Float - Time per measurement
+  screamer:          # Same as above but for TCR
+    method: percent
+    threshold: 400.0
+    percent: 90.0
+    factor: 1.5
+
+dsum:
+  data_type: NZKF     # Str - all | NZ | NZKF | dt | max
+  bin_idx_mode: time  # Str - time | continuous | frame

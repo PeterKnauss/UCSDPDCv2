@@ -1,0 +1,27 @@
+behavior:                  
+  script_tag: tcr                   # Str  - Tag appended to filenames
+  zpp_period_from_meas_time: true   # Bool - Required for TCR. Sets the wait time for ZPP data ACQ to be the same as measurement time
+  clear_hexread: true               # Bool - run clearHexRead() on session startup
+  power_supplies: true              # Bool - Initialize power supplies automatically
+  pdc_pix_dis_args: ""              # Str  - Argument to append to the end of pdcPix --dis command
+
+pdc:
+  time: {hold_ns: 150.0, rech_ns: 10.0, flag_ns: 10.0}   # pdcTime command: hold, recharge and flag times in ns
+  PIXL:                                                  # pixel front end register
+    active_qc_en: 1      # active quenching enabled
+    trg_dgtl_fen: 0
+    flag_en: 1           # flag output enabled; the SPAD flag pulses are what TCR counts
+    edge_lvln: 0    
+    dis_mem: 0      
+  ANLG: 0x001F           # analog monitor select, 0x0000 = off
+  OUTD: {func: VSS}     
+  OUTF: {func: FLAG}     # flag pin function; FLAG = carries the flag pulses (the DSUM modes use SUM_GT)
+  TRGC: 0x0000           # trigger command, 0x0000 = disabled
+  OUTC: {data: VSS, flag: VSS}   # config pin functions; written last, after validPdcCfg
+
+controller:
+  packet:
+    SCSA: {}             # config/status words in packet A; none requested
+    SCDA: {}             # Controller data in packet A; none requested
+    SPDA: {preset: zpp}  # PDC data in packet A: the ZPP items (last, min, max, bin, nul, tot, prd); TCR reads the ZPP average from this packet
+  fsm_command: {tx_all_pdc: 1, acq_all_pdc: 0, start_mode: 1}   # FSMM: start_mode 1 = FSM starts on a command (0 off, 2 timer, 3 start now); tx from all PDCs

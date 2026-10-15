@@ -1,0 +1,37 @@
+zynq:
+  ssh_host: zcudev            # Str - SSH host for ZCU board
+  sys_clk_period_ns: 10       # Int - Clock period in nanoseconds
+  cfg_data_delay: 300         # Int - Delay for PDC configuration signal
+
+paths:
+  user_data_dir: null         # Str - Folder location for user data
+  hdf5_dir: null              # Str - Folder location for temporary HDF5 files made by TCR
+
+supplies:                     # Power supplies - Ramp up in this order and ramp down in reverse. Voltages are in run.yaml
+  bk:                         # Identification and information for the BK supply
+    model: bk                 # Str   - Command file in configs/supplies for this supply
+    connection:               # How to reach the supply. Everything except address is given to open_resource
+      address: "ASRL/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0::INSTR"   # Str - Address given to open_resource
+                              #         Serial - ASRL<port>::INSTR. Use the name in /dev/serial/by-id for the port. Needs baud_rate
+                              #         USBTMC - USB0::<vendor>::<model>::<serial number>::0::INSTR. Needs nothing else
+                              #         LAN    - TCPIP0::<ip address>::INSTR. Needs nothing else
+                              #         Addresses that pyvisa can see are printed if it cannot open the address
+      baud_rate: 57600        # Int   - Baud rate set on the supply. Serial only
+    health_enable: true       # Bool  - Run the health check from the model file when connecting. Protections still get set
+    step_V: 10                # Float - Voltage step while ramping
+    step_delay_s: 0.5         # Float - Time in seconds to wait between ramping steps
+    slow_start_V: 10          # Float - Below this voltage ramp in slow_step_V steps
+    slow_step_V: 1            # Float - Voltage step below slow_start_V
+    ocp_A: 5.0e-5             # Float - Overcurrent protection in amps
+    ovp_V: 260.0              # Float - Overvoltage protection in volts
+    max_V: 250                # Float - Highest voltage run.supply_V can ask for
+  keysight:                   # Identification and information for the Keysight supply
+    model: keysight           # Str   - Command file in configs/supplies for this supply
+    connection:               # How to reach the supply. Everything except address is given to open_resource
+      address: "USB0::10893::<model>::<serial number>::0::INSTR"   # Str - Address given to open_resource. Same options as above. Keysight vendor 0x2A8D is 10893 in decimal
+    health_enable: true       # Bool  - Run the health check from the model file when connecting. Protections still get set
+    step_V: 1                 # Float - Voltage step while ramping
+    step_delay_s: 0.5         # Float - Time in seconds to wait between ramping steps
+    current_limit_A: 0.1      # Float - Current limit in amps
+    ovp_margin_V: 0.5         # Float - Overvoltage margin - OVP set to target voltage + ovp_margin_V. Use ovp_V for a fixed value
+    max_V: 60                 # Float - Highest voltage run.supply_V can ask for

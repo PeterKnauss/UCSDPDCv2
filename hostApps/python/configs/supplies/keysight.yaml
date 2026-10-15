@@ -1,0 +1,22 @@
+# Commands for the Keysight supply. {v} is the voltage being set. Any other {name} is a key in the supply of hardware.yaml
+terminations:                 # Characters at the end of each message
+  write: "\n"                 # Str - Added to everything sent
+  read: "\n"                  # Str - Removed from every reply
+idn: "*IDN?"                  # Str - Query for the identification of the supply. The reply is printed when connected
+set_voltage: "APPL {v}, {current_limit_A}"   # Str - Command to set the voltage and current limit
+health:                       # Check right after connecting
+  query: "*TST?"              # Str - Query for the health of the supply
+  ok_contains: "0"            # Str or list - Good if the reply has this text. A list is good if the reply has any of them
+  after_ok: ["SYST:BEEP"]     # Sent when the health is good
+ensure_off:                   # Turn off the output if a previous run left it on
+  query: "OUTP?"              # Str - Query for the state of the output
+  on_value: 1                 # Int - Reply that means the output is on
+  send: "OUTP OFF"            # Str - Command to turn the output off
+protect:                      # Protection limits sent while the output is off
+  - "VOLT:PROT {ovp_V}"
+arm:                          # Sent before the ramp up
+  - "APPL 0.0, 0.0"
+  - "OUTP ON"
+disarm:                       # Sent after the ramp down
+  - "APPL 0.0, 0.0"
+  - "OUTP OFF"
