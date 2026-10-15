@@ -1,5 +1,5 @@
 """
-config.py -- load the YAML files into one Config object.
+Load the YAML files into one Config object.
 
 Three files, each key lives in exactly one of them:
 
@@ -178,7 +178,6 @@ def validate(cfg: dict) -> None:
     if problems:
         raise ConfigError("config problems:\n  - " + "\n  - ".join(problems))
 
-
 def plan_cfg(cfg: dict) -> dict:
     """
     Creates a config that plan.build_plan() can read to make the startup plan. Adds a few values that aren't input elsewhere
@@ -198,7 +197,6 @@ def plan_cfg(cfg: dict) -> dict:
     if cfg.get("behavior", {}).get("zpp_period_from_meas_time"):
         out["controller"].setdefault("apps", {})["zpp_period_s"] = cfg["tcr"]["meas_time_s"]
     return out
-
 
 def dump(cfg: dict, path: str | Path) -> Path:
     """Saves the fully resolved config printout"""

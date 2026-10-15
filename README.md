@@ -35,27 +35,30 @@ The only prior steps to running these steps is having the setup script on the ho
 
 ```
 └───hostApps/python
-│   └───modules # Utility classes for different functionalities
-│       │   fgColors.py: Add colors in prints in the terminal
-│       │   h5Reader.py: Manage generated HDF5 file and access data elements
-│       │   pdcHelper.py: Configure the different registers of the PDC
-│       │   pixMap.py: Map the ID of the pixel to its X/Y coordinates
-│       │   sshClientHelper.py: Open a ssh connection to the ZCU102 and forwards commands to the applications
-│       │   systemHelper.py: Miscellaneous (print formatting...)
-│       │   zynqCtlPdcRoutines.py: Configure and control the Tile Controller state machine and send various commands
-│       │   zynqDataTransfer.py: Manage the dataflow between the ZCU102 and the host computer (dataReader, dma2h5, NFS server validation, etc...)
-│       │   zynqEnvHelper.py: Module to set path and variable to use for the scripts
-│       │   zynqHelper.py: Manage auxiliary features of the ZCU102 board (hardware info, delay line configuration) 
-    # Various graphical application configuring the PDCs with active SPADs to display different informations
-│   │   getSpadTcrUcrCcrUsingFlag.py: Get the different count rates (total, uncorellated and correlated) of the SPADs
-│   │   getSpadTcrUsingFlag.py: Get the total count rates of the SPADs
-│   │   openCtlDataComm.py: Starts the communication channels of the platform (NFS server validation, dma reader and dma2h5)
-│   │   plotDsum.py: Displays the digital sum
-│   │   preparePdc.py: Utility for inital PDC configuration
-│   │   testPixQcUsingTrigger.py: Tests the quenching circuits of the chip using the internal trigger
-        # Misc:
-│   │   validatePDCCommunication.py: Test to validate that you can communicate with your
-│   │   requirements.txt: List of python modules to install. Should already be installed in the `venv_pdcv2` created with the setup script
+    └───modules # Utility classes for different functionalities
+        │   fgColors.py: Add colors in prints in the terminal
+        │   h5Reader.py: Manage generated HDF5 file and access data elements
+        │   pdcHelper.py: Configure the different registers of the PDC
+        │   pixMap.py: Map the ID of the pixel to its X/Y coordinates
+        │   sshClientHelper.py: Open a ssh connection to the ZCU102 and forwards commands to the applications
+        │   systemHelper.py: Miscellaneous (print formatting...)
+        │   zynqCtlPdcRoutines.py: Configure and control the Tile Controller state machine and send various commands
+        │   zynqDataTransfer.py: Manage the dataflow between the ZCU102 and the host computer (dataReader, dma2h5, NFS server validation, etc...)
+        │   zynqEnvHelper.py: Module to set path and variable to use for the scripts
+        │   zynqHelper.py: Manage auxiliary features of the ZCU102 board (hardware info, delay line configuration) 
+    └───pdv2_helpers # Architecture for managing sessions, modes, supplies, configs, etc.
+        │   modes: Folder for individual test mode management. Takes in session
+        │   cli.py: Functions for passing information through the CLI to the ZYNQ controller
+        │   config.py: Manages all configs and merges them into one for later use in the session
+        │   paths.py: Path management simple functions
+        │   pixels.py: Individual pixel management mostly used for DSum measurements
+        │   plan.py: Plan setup for initialization of Controller and PDC
+        │   power.py: Power supply management for connection, protection, and ramping
+        │   registers.py: Register mapping from bit streams to fields
+        │   session.py: Overhead session management
+    # Misc:
+    │   validatePDCCommunication.py: Test to validate that you can communicate with your
+    │   requirements.txt: List of python modules to install. Should already be installed in the `venv_pdcv2` created with the setup script
 ```
 
 These should help you visualize incoming information from your PDC and develop new appliations tailored to your setup.

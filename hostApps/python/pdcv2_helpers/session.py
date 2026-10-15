@@ -1,5 +1,5 @@
 """
-session.py -- PdcSession: the connection plus the init sequence shared by all modes.
+PdcSession holds the connection and initialization sequences shared by all modes
 
     with PdcSession(cfg) as session:        # opens the ssh connection to the ZCU102
         DsumMode(session).execute()

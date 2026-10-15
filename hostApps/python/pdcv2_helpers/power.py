@@ -1,9 +1,8 @@
 """
-power.py -- Power supplies controlled through config
+Power supplies controlled through config files
 
-One class, PowerSupply, handles every supply. hardware.yaml has the connection and limits of each supply and
-configs/supplies/<model>.yaml has the commands that supply model understands. The voltage each supply
-ramps to is run.supply_V
+PowerSupply class handles given supplies. Hardware config has connections and limits of each supply and model
+config has the commands that the model understands. Voltage for each supply is from run config at supply_V.
 
     supplies = load_supplies(cfg["hardware"]["supplies"], cfg["run"]["supply_V"])
     connect_all(supplies)           # Open, check health and set protections. Outputs stay off
@@ -42,12 +41,10 @@ def _templates(p: dict) -> list[str]:
         out += cmds
     return out
 
-
 def _ok_list(h: dict) -> list:
     """ok_contains as a list. It can be one text or a list of texts"""
     ok = h.get("ok_contains", [])
     return list(ok) if isinstance(ok, (list, tuple)) else [ok]
-
 
 def check_profile(name: str, cfg: dict) -> list[str]:
     """Checks a supply and its model file for problems without touching hardware. Returns the list of problems"""
@@ -91,7 +88,6 @@ def check_profile(name: str, cfg: dict) -> list[str]:
                                 f"but the supply's entry in hardware.yaml has no '{field}'")
     return problems
 
-
 def check_addresses(hw_cfg: dict) -> list[str]:
     """Problems with two supplies on the same address. Returns the list of problems"""
     seen, problems = {}, []
@@ -102,7 +98,6 @@ def check_addresses(hw_cfg: dict) -> list[str]:
                 problems.append(f"supply '{name}': connection.address is the same as supply '{seen[address]}'")
             seen.setdefault(address, name)
     return problems
-
 
 def _visible(rm) -> list[str]:
     """Names of the resources pyvisa can see, for error messages"""
@@ -129,7 +124,6 @@ class PowerSupply:
         if "ovp_V" not in cfg:
             self.fields["ovp_V"] = _dec(self.target_v + cfg["ovp_margin_V"]) if "ovp_margin_V" in cfg else ""
 
-    # ----- connection -----
     def open(self, rm) -> None:
         """Opens connection.address and prints the ID of the supply"""
         conn, t = dict(self.cfg["connection"]), self.profile["terminations"]
@@ -161,8 +155,7 @@ class PowerSupply:
     def query(self, text: str) -> str:
         """Sends a query and returns the reply"""
         return self.inst.query(text)
-
-    # ----- startup -----
+    
     def prepare(self) -> None:
         """Checks the health, turns off what a previous run left on and sets the protections. Output stays off"""
         p = self.profile
@@ -196,7 +189,6 @@ class PowerSupply:
             return
         raise PowerError(f"{self.name}: failed system health: {reply}")
 
-    # ----- ramping -----
     def set_voltage(self, v: float) -> None:
         """Sets the voltage and remembers it"""
         self.write(self.profile["set_voltage"], v=_dec(v))
@@ -252,7 +244,6 @@ class PowerSupply:
         self.inst = None
         self.volts = 0.0
 
-
 def load_supplies(hw_cfg: dict, targets_v: dict) -> list[PowerSupply]:
     """Makes one supply per entry of hardware.supplies in file order. targets_v is run.supply_V. Does not touch hardware"""
     problems = check_addresses(hw_cfg)
@@ -264,7 +255,6 @@ def load_supplies(hw_cfg: dict, targets_v: dict) -> list[PowerSupply]:
             raise PowerError(f"supply '{name}': no voltage in run.supply_V")
         supplies.append(PowerSupply(name, c, targets_v[name]))
     return supplies
-
 
 def connect_all(supplies: list[PowerSupply]) -> None:
     """Opens every supply, then prepares them in order. If one cannot be opened the others are closed without sending anything"""
@@ -280,13 +270,11 @@ def connect_all(supplies: list[PowerSupply]) -> None:
     for s in supplies:
         s.prepare()
 
-
 def ramp_up_all(supplies: list[PowerSupply], ask) -> None:
     """Ramps up each supply in order"""
     for s in supplies:
         s.ramp_up(ask)
     ask("Press [enter] key to continue")
-
 
 def ramp_down_all(supplies: list[PowerSupply]) -> None:
     """Ramps down in reverse order. Safe to call twice or when nothing was connected"""

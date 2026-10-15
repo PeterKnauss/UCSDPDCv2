@@ -1,8 +1,8 @@
 """
-registers.py -- declarative register map for the PDC chips and the Controller (FPGA).
+Register map for the PDC and Controller
 
-Every register is described once as a list of named bit fields. `Reg.pack()` turns named fields into the 16-bit
-value and `Reg.unpack()` goes back the other way.
+Registers are described as a list of named bit fields. Reg.pack() turns these into the actual value passed
+to the hardware. Reg.unpack() goes the other way.
 
     PIXL.pack(active_qc_en=1, flag_en=1, edge_lvln=1, dis_mem=1)   -> 0x3102
     PIXL.unpack(0x3102)                                            -> {'active_qc_en': 1, ...}
@@ -189,11 +189,9 @@ def pack_reg(name: str, spec) -> int:
         spec = {"lo": f, "hi": f, **spec}
     return reg.pack(**spec)
 
-
 def split_enable_mask(mask: int) -> tuple[int, int]:
     """PDC enable mask -> (low 16 bits, high 16 bits) for PDC0/PDC1, CFG0/CFG1, COI0/COI1, TRG0/TRG1."""
     return mask & 0xFFFF, (mask >> 16) & 0xFFFF
-
 
 def split_32bit(value: int, enable: bool = True) -> tuple[int, int]:
     """32-bit period -> (low register, high register). Used by ZPH/ZPL and TMR0/TMR1.
