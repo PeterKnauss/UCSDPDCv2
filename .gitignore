@@ -2,8 +2,14 @@
 data/*
 !data/.gitkeep
 
-# Ignore notebook checkpoints
+# Ignore checkpoints and caches
 .ipynb_checkpoints/
+__pycache__/
+*.pyc
 
 # Mac-specific ignore
 .DS_store
+
+# Ignore the venv
+venv/
+.venv/
