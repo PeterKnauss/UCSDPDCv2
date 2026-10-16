@@ -1,0 +1,9 @@
+# Ignore data folder
+data/*
+!data/.gitkeep
+
+# Ignore notebook checkpoints
+.ipynb_checkpoints/
+
+# Mac-specific ignore
+.DS_store
