@@ -10,6 +10,22 @@ The scripts live in `hostApps/python` next to `pdcv2_modules`. `setupHosts/setup
 
     pip install -r requirements.txt
 
+## Platform support
+
+The acquisition runs need Linux, the host the dev kit is set up for. These parts are Linux only:
+
+- The ssh connection to the ZCU102 (`parallel-ssh`, which `requirements.txt` installs on Linux only, and `~/.ssh/config`).
+- The NFS folders shared with the ZCU102 and the `hexRead` programs in `hostApps/cpp` that read the data.
+- Serial supply addresses such as `/dev/serial/by-id/...`, and `setupHosts/setup.sh`.
+- `h5Reader`, and with it `plotDsum.py`, which list files with `ls`.
+- A graceful Stop in the GUI: the scripts ramp the supplies down on Ctrl-C, which only Linux can send to a running job.
+
+That covers `run_tcr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `validatePDCCommunication.py` and `openCtlDataComm.py`.
+Reading and editing the config files, `--show-config` and the GUI do not touch the bench, so they can be used on other
+systems to prepare configs or try the GUI offline. A job that reaches the bench fails there with a clear error.
+
+`requirements.txt` installs numpy 1.x up to Python 3.12 (the setup script uses 3.11) and numpy 2.1 or newer from Python 3.13.
+
 ## Use
 
     python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.run_folder=Co57_10152026
@@ -26,6 +42,25 @@ An entry script is these lines:
     cfg = build_config("dsum_rad", parse_args("dsum_rad"))
     with PdcSession(cfg) as session:
         DsumMode(session).execute()
+
+## GUI
+
+`run_gui.py` opens a window to edit the config files, queue runs and follow their output. It runs the same scripts and
+reads the same files as the command line.
+
+    source ~/venv_pdcv2/bin/activate
+    python run_gui.py
+
+The packages are in `requirements.txt` like everything else. On Ubuntu, Qt may also need `sudo apt install libxcb-cursor0`.
+
+- **Main** page: the settings you pinned (tick *Main* next to a setting in the Configs tab), the queue and the log.
+- **Configs** tab: every file in `configs/`, as a form or raw YAML. The comments of the files are the descriptions.
+- **Add current settings** queues a run with the values on screen. Each job keeps the values it was queued with, so edit,
+  queue, edit and queue again. *Save configs* writes the files, queuing does not.
+- **Add sweep** queues one job per value of a setting, and **Add script job** queues any script of this folder.
+- **Run queue** runs the jobs one after another. **Stop** sends Ctrl-C to the script, which ramps the supplies down.
+
+More in `pdcv2_gui/README.md`.
 
 ## Config files
 
@@ -112,6 +147,8 @@ Any key can be changed for one run with `section.key=value`, like `run.head_id=4
 ## Layout
 
     run_tcr.py  run_dsum_rad.py  run_dsum_coincidence.py   entry scripts
+    run_gui.py                                             control GUI entry script
+    pdcv2_gui/                                             control GUI (config editor, job queue, log)
     configs/                                               hardware.yaml, run.yaml, modes/*.yaml
     configs/supplies/                                      command dialect of each supply model (bk.yaml, keysight.yaml); hardware.yaml picks one with model:
     pdcv2_helpers/registers.py                             register definitions: name, address, bit fields (14 PDC + 67 controller registers)

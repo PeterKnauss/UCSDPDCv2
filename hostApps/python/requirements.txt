@@ -1,3 +1,4 @@
+# Acquisition scripts
 PyYAML>=6.0
 tqdm
 pyvisa>=1.13
@@ -11,3 +12,12 @@ h5py
 parallel-ssh>=2.16.0.post1
 sshconf>=0.2.7
 psutil
+
+# Control GUI (run_gui.py)
+PySide6>=6.6
+ruamel.yaml>=0.18
+
+# Analysis notebooks (analysis/*.ipynb)
+scipy
+ipywidgets
+jupyterlab
