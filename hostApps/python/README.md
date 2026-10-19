@@ -24,8 +24,6 @@ That covers `run_tcr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `run_dsu
 Reading and editing the config files, `--show-config` and the GUI do not touch the bench, so they can be used on other
 systems to prepare configs or try the GUI offline. A job that reaches the bench fails there with a clear error.
 
-`requirements.txt` installs numpy 1.x up to Python 3.12 (the setup script uses 3.11) and numpy 2.1 or newer from Python 3.13.
-
 ## Use
 
     python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.run_folder=Co57_10152026

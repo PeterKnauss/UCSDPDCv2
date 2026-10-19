@@ -29,11 +29,11 @@ if [ -f "/etc/debian_version" ]; then # Running on Debian based OS
     echo "Running on Debian-based Linux"
     sudo apt update && sudo  apt install software-properties-common -y
     sudo add-apt-repository ppa:deadsnakes/ppa -y
-    sudo apt install net-tools nfs-kernel-server python3.11 python3.11-venv python3.11-tk network-manager iproute2 -y
+    sudo apt install net-tools nfs-kernel-server python3.12 python3.12-venv python3.12-tk network-manager iproute2 -y
 elif [ -f "/etc/redhat-release"  ]; then
     echo "Running on RHEL"
     sudo dnf update -y
-    sudo dnf install net-tools python3.11 nfs-utils NetworkManager -y
+    sudo dnf install net-tools python3.12 nfs-utils NetworkManager -y
 fi
 }
 
@@ -79,7 +79,7 @@ sudo exportfs -a
 
 # 5. Setup python environment
 function python_env_creation {
-python3.11 -m venv $PYTHON_VENV_PATH
+python3.12 -m venv $PYTHON_VENV_PATH
 . $PYTHON_VENV_PATH/bin/activate
 pip install -r $PROJECT_PATH/hostApps/python/requirements.txt
 }
