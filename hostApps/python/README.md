@@ -120,7 +120,7 @@ One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital s
 
 Edit it between runs. It is the same for every mode.
 
-- `run` - `run_folder` is the folder this run is saved in, made inside `hardware.paths.user_data_dir` (for example `tcr_10152026`). It is required, and the run stops with a config error when it is empty. Everything a run writes goes in this folder. `head_id` is the head used. `supply_V` is the voltage for each supply in hardware.yaml (same names). `spad_supply` is the supply that biases the SPADs. Its voltage is used in the file name, and empty means no voltage in the file name. `name` is added to the end of the file name. `meas_time_s` is the time of a DSUM measurement. `pdc_enable` is which PDCs to enable (hex mask, `0xF` is all). `n_spad` is the number of SPADs per PDC. `analog_only`, `save_plot` and `batch_mode` turn on analog only mode, save the output plot and remove user input.
+- `run` - `run_folder` is the folder this run is saved in, such as `tcr_10152026` or `path/to/tcr_10152026` (a relative path is made inside `hardware.paths.user_data_dir`, a full path is used as it is). It is required, and the run stops with a config error when it is empty. Everything a run writes goes in this folder. `head_id` is the head used. `supply_V` is the voltage for each supply in hardware.yaml (same names). `spad_supply` is the supply that biases the SPADs. Its voltage is used in the file name, and empty means no voltage in the file name. `name` is added to the end of the file name. `meas_time_s` is the time of a DSUM measurement. `pdc_enable` is which PDCs to enable (hex mask, `0xF` is all). `n_spad` is the number of SPADs per PDC. `analog_only`, `save_plot` and `batch_mode` turn on analog only mode, save the output plot and remove user input.
 - `pixels` - Which SPADs are on for DSUM. `source: tcr_file` finds screamers from the TCR file in `tcr_file` (a full path str) and `source: all` turns off screamer masking. `screamer` picks how to find screamers: `method` is constant, average, percent, medianFactor or medianToMin, and `threshold`, `percent` and `factor` are the numbers the method uses. `mask` is the area that is on (`cx`, `cy`, `width`, `height`, and `checker` for a checkerboard). `show_mask` shows the mask at the start. `per_pdc_off` are areas to turn off in each PDC when `per_pdc_pixel_off` is true.
 - `tcr` - `meas_time_s` is the time per TCR measurement. `screamer` is the same as above but for TCR.
 - `dsum` - Options for the dsum module of hexRead. `data_type` is all, NZ, NZKF, dt or max and `bin_idx_mode` is time, continuous or frame.
@@ -129,7 +129,7 @@ Use `--run FILE` to run with a different run file, so you can keep one for each 
 
 ### Where data goes
 
-`hardware.paths.user_data_dir` is the parent of all data (empty uses the `USER_DATA_DIR` environment variable). Each run writes into its own folder inside it, named by `run.run_folder`:
+`hardware.paths.user_data_dir` is the parent of all data (empty uses the `USER_DATA_DIR` environment variable). Each run writes into its own folder inside it, named by `run.run_folder` (any relative path, such as `path/to/this_folder`; a full path such as `/data/other/this_folder` is used as it is and ignores `user_data_dir`):
 
     <user_data_dir>/<run_folder>/
         <date>_<mode>_...csv                  DSUM data, or <date>_TCR_...csv for a TCR scan

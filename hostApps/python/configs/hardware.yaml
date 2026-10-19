@@ -4,7 +4,7 @@ zynq:
   cfg_data_delay: 300         # Int - Delay for PDC configuration signal
 
 paths:
-  user_data_dir: null         # Str - Parent folder of all data. Each run makes its own folder (run.run_folder) inside it. Empty uses the USER_DATA_DIR environment variable
+  user_data_dir: null         # Str - Parent folder of all data. Each run makes its own folder (run.run_folder, which can be a path such as path/to/folder) inside it. Empty uses the USER_DATA_DIR environment variable
 
 supplies:                     # Power supplies - Ramp up in this order and ramp down in reverse. Voltages are in run.yaml
   bk:                         # Identification and information for the BK supply

@@ -20,8 +20,8 @@ def resolve_paths(cfg) -> RunPaths:
     return RunPaths(user_data=Path(user).expanduser())
 
 def run_dir(cfg, paths: RunPaths) -> Path:
-    """<user_data_dir>/<run.run_folder>. Every file a run writes goes in this folder"""
-    return paths.user_data / cfg["run"]["run_folder"]
+    """<user_data_dir>/<run.run_folder>, or run.run_folder itself when it is a full path. Every file a run writes goes in this folder"""
+    return paths.user_data / Path(cfg["run"]["run_folder"].strip()).expanduser()
 
 def _num(v) -> str:
     """25 -> '25', 25.0 -> '25', 25.5 -> '25.5'"""

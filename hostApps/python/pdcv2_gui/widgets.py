@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMenu,
     QPlainTextEdit, QPushButton, QScrollArea, QTabWidget, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
-from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.comments import CommentedMap
 from . import yamlio as Y
 from .jobs import ANSI, Job, JobQueue
 from .workspace import Workspace
@@ -108,7 +108,7 @@ class ValueEditor(QWidget):
                     return (v == v and abs(v) != float("inf")), v
             if self.kind == "yaml":
                 v = Y.loads(text)
-                return isinstance(v, (CommentedMap, CommentedSeq)), v
+                return isinstance(v, type(self._orig)), v
             if self.kind == "str":
                 if text == "":
                     return True, (None if self._orig is None else "")
@@ -229,7 +229,7 @@ class QuickPanel(QWidget):
         self.refresh_problems()
 
     def refresh_problems(self) -> None:
-        problems = self.ws.problems()
+        problems = self.ws.problems(self.mode.currentText())
         for (fid, ptext), ed in self.editors.items():
             key = self.ws.display_key(fid, tuple(ptext.split(".")))
             ed.set_problem(problems.get((fid, key)))

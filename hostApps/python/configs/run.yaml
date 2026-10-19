@@ -1,5 +1,5 @@
 run:
-  run_folder: ""      # Str   - REQUIRED. Folder for this run inside user_data_dir, such as tcr_10152026. All data, plots and configs of the run are saved in it
+  run_folder: ""      # Str   - REQUIRED. Folder for this run, such as tcr_10152026 or path/to/tcr_10152026. A relative path is inside user_data_dir, a full path is used as it is. All data, plots and configs of the run are saved in it
   head_id: 62         # Int   - ID for the head used
   supply_V:           # Voltage each supply in hardware.yaml ramps to. Cannot be above max_V of the supply
     bk: 250           # Float - Voltage for the BK supply

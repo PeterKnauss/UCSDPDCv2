@@ -39,9 +39,38 @@ def save(data, path) -> None:
 def clone(data):
     return copy.deepcopy(data)
 
+def _bare(node) -> None:
+    """Removes the comments of a list or mapping (a copy of it) and sets flow style, so it dumps as one line of just its values"""
+    if isinstance(node, (CommentedMap, CommentedSeq)):
+        node._yaml_comment = None
+        node.fa.set_flow_style()
+        for child in (node.values() if isinstance(node, CommentedMap) else node):
+            _bare(child)
+
 def flow_text(value) -> str:
-    """One-line YAML text of a list or mapping, for editing in a line box"""
-    return dumps(value).strip().replace("\n", " ")
+    """One-line YAML text of a list or mapping, for editing in a line box. The comments are not in it, they stay in the file"""
+    node = copy.deepcopy(value)
+    _bare(node)
+    return dumps(node).strip().replace("\n", " ")
+
+def assign(old, new):
+    """Puts the values of new into old in place and keeps the comments of old, which hang on the keys and on the item positions.
+    Lists and mappings inside are updated the same way. Returns the value that belongs in the parent"""
+    if isinstance(old, CommentedSeq) and isinstance(new, CommentedSeq):
+        for i, item in enumerate(new):
+            if i < len(old):
+                old[i] = assign(old[i], item)
+            else:
+                old.append(item)
+        del old[len(new):]
+        return old
+    if isinstance(old, CommentedMap) and isinstance(new, CommentedMap):
+        for key in [k for k in old if k not in new]:
+            del old[key]
+        for key, item in new.items():
+            old[key] = assign(old[key], item) if key in old else item
+        return old
+    return coerce_like(old, new)
 
 
 def comment_of(parent: CommentedMap, key) -> str:
