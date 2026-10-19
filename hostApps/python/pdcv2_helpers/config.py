@@ -27,7 +27,7 @@ from .paths import run_folder_name
 from .power import check_addresses, check_profile
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
-MODES = ("tcr", "dsum_coincidence", "dsum_rad")
+MODES = ("tcr", "dsum_coincidence", "dsum_rad", "dsum_single")
 
 
 class ConfigError(ValueError):

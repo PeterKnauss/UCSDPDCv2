@@ -1,0 +1,58 @@
+behavior:
+  export_h5: true                     # Bool - Create an h5 file
+  clear_hexread: true                 # Bool - Run clearHexRead() on session setup
+  power_supplies: true                # Bool - Initialize power supplies automatically
+  per_pdc_pixel_off: true             # Bool - Use manual pdc masking defined in run.yaml
+  allow_analog_only: true             # Bool - Allow analog only mode
+  pdc_pix_dis_args: "--mode NONE"     # Str  - Argument to append to the end of pdcPix --dis command
+
+pdc:
+  time: {hold_ns: 50.0, rech_ns: 10.0, flag_ns: 2.0}   # pdcTime command: hold, recharge and flag times in ns
+  PIXL:                                                # pixel front end register
+    active_qc_en: 1      # active quenching enabled
+    trg_dgtl_fen: 0
+    flag_en: 1           # flag output enabled
+    edge_lvln: 1
+    dis_mem: 1
+  ANLG: 0x001F           # analog monitor select, 0x0000 = off
+  STHL:
+    enable: 1            # enables both sum thresholds (STHH and STHL)
+    low: 0               # low sum threshold value. SUM_GT is high when the digital sum is GREATER than this, so 0 = one pixel is enough (1 would need two)
+  FIFO:
+    overwrite_dis: 0     # 1 = do not overwrite old FIFO entries
+    enable: 1            # FIFO enabled
+    sel_in: 0            # FIFO input: 0 digital sum, 1 debug counter, 2 debug register, 3 zeros
+    depth: auto          # bins - 1; auto = fsm.samples n_fast + n_slow - 1 (127 if there is no fsm)
+  OUTD: {func: DATA}
+  OUTF: {func: SUM_GT}   # flag pin carries the sum comparator, so each PDC raises it when its sum is above STHL.low
+  TRGC: 0x0000           # trigger command, 0x0000 = disabled
+  OUTC: {data: CFG_VALID, flag: CLK_CS}   # config pin functions; written last, after validPdcCfg
+
+controller:
+  packet:
+    SCSA: {pdc_status_all: 1}   # config/status words in packet A; always written first so the other registers get stored in the HDF5
+    SCDA: {}                    # Controller data in packet A; empty = none
+    SPDA: {preset: dsum}        # PDC data in packet A; dsum preset = digital sum only (zpp preset = ZPP items)
+  fsm:
+    samples:
+      n_fast: 0                 # samples in the fast acquisition state
+      n_slow: 128               # samples in the slow state
+      n_history: 28             # samples kept from before the trigger; state delay = n - n_history
+    trigger_mode: 5             # mode field of the active acquisition state (SLW0, or FST0 if n_fast > 0). 5 = sum threshold on ANY PDC, 4 = on ALL PDCs, 1 = coincidence, 0 = flag from any PDC
+    slow_period: 0              # SLW1 period
+    timeout: {auto: 0, all_pdc: 1, retry: 1, period: 48}   # TOUT register
+    end:  {enable: 1, mode: 2, delay: 0}                   # FEND: end of acquisition state
+    tx:   {enable: 1, cmd_mode: 1, mode: 2, cmd_delay: 0, cancel_send_rstn: 0, cancel_mode: 0}        # FTX0 / FTX1: transmit state; its n is n_fast + n_slow
+    atx:  {enable: 0, mode: 0, cmd_mode: 0, cmd_delay: 0, cancel_send_rstn: 0, cancel_mode: 0, n: 0}  # ATX0 / ATX1
+    acq:  {cancel_send_rstn: 0, cancel_mode: 0, overlap: 0, cmd_mode: 7}                              # FACQ: acquisition command options
+    misc: {tx_all_pdc: 1, acq_all_pdc: 1}   # FSMM: apply tx and acq to all PDCs
+  interfaces:
+    ITF2: {sum_th_acq: 1}       # input interface for SUM_TH and CLK_TX; sum_th_acq routes the PDC flag pin (SUM_GT) to SUM_TH in the acq state. Needed for trigger_mode 4 and 5
+  coincidence:
+    window: 1                   # COIW: coincidence window in clock cycles. Not used while trigger_mode is 5
+    nch_th: 1                   # COTH: PDCs that must hit in the window. Not used while trigger_mode is 5
+    num_bank: 1                 # COTH: bank count. Not used while trigger_mode is 5
+  apps:
+    stream_manager: {tlast_threshold: 500, timeout_s: 1}   # streamManager --thresh <tlast_threshold> -T <timeout_s> --sec
+    aux_out:
+      - {channel: 0, func: 8}   # auxOut --ch <channel> --func <func>; func 8 = SUM_TH_OR, the "any PDC reached the sum threshold" signal, so the aux pin pulses on every single-photon trigger

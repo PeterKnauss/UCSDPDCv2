@@ -1,7 +1,7 @@
 # PDCv2 helpers
 
 One initializer for the PDCv2 acquisition scripts: a config loader, a register plan and a session object shared by the
-TCR scan and the two DSUM modes. Settings live in YAML files.
+TCR scan and the three DSUM modes. Settings live in YAML files.
 
 ## Install
 
@@ -20,7 +20,7 @@ The acquisition runs need Linux, the host the dev kit is set up for. These parts
 - `h5Reader`, and with it `plotDsum.py`, which list files with `ls`.
 - A graceful Stop in the GUI: the scripts ramp the supplies down on Ctrl-C, which only Linux can send to a running job.
 
-That covers `run_tcr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `validatePDCCommunication.py` and `openCtlDataComm.py`.
+That covers `run_tcr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `run_dsum_single.py`, `validatePDCCommunication.py` and `openCtlDataComm.py`.
 Reading and editing the config files, `--show-config` and the GUI do not touch the bench, so they can be used on other
 systems to prepare configs or try the GUI offline. A job that reaches the bench fails there with a clear error.
 
@@ -30,6 +30,7 @@ systems to prepare configs or try the GUI offline. A job that reaches the bench 
 
     python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.run_folder=Co57_10152026
     python run_dsum_coincidence.py --run my_run.yaml
+    python run_dsum_single.py run.run_folder=single_10192026
     python run_tcr.py tcr.meas_time_s=0.5 run.n_spad=64
     python run_dsum_rad.py --batch          # no prompts, no figure window
     python run_dsum_rad.py --show-config    # print the resolved config and exit
@@ -110,7 +111,7 @@ To add a supply: connect to it with pyvisa and try the commands by hand, copy th
 
 ### `modes/<mode>.yaml`
 
-One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital sum with a radiation source) and `dsum_coincidence` (digital sum when several PDCs hit in the coincidence window). Each one is self contained, nothing is shared between them, so values repeated in the three files are on purpose. The mode is picked by the script you run. Each file has three sections:
+One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital sum with a radiation source), `dsum_coincidence` (digital sum when several PDCs hit in the coincidence window) and `dsum_single` (digital sum when one photon hits any PDC). Each one is self contained, nothing is shared between them, so values repeated in the four files are on purpose. The mode is picked by the script you run. Each file has three sections:
 
 - `behavior` - Choices that are not registers. `export_h5` creates an h5 file in the run folder (DSUM). `clear_hexread` runs clearHexRead() on startup. `power_supplies` ramps the supplies in hardware.yaml automatically, and false asks you to apply HV by hand. `per_pdc_pixel_off` uses the manual PDC masking in run.yaml. `allow_analog_only` allows analog only mode. `pdc_pix_dis_args` is added to the end of the `pdcPix --dis` command. `zpp_period_from_meas_time` (TCR only) sets the ZPP wait time to the measurement time.
 - `pdc` - Register values written to every PDC: `time` (hold, recharge and flag times in ns), `PIXL`, `ANLG`, `STHL`, `FIFO`, `OUTD`, `OUTF`, `TRGC` and `OUTC`. The names are the register names.
@@ -146,7 +147,7 @@ Any key can be changed for one run with `section.key=value`, like `run.head_id=4
 
 ## Layout
 
-    run_tcr.py  run_dsum_rad.py  run_dsum_coincidence.py   entry scripts
+    run_tcr.py  run_dsum_rad.py  run_dsum_coincidence.py  run_dsum_single.py   entry scripts
     run_gui.py                                             control GUI entry script
     pdcv2_gui/                                             control GUI (config editor, job queue, log)
     configs/                                               hardware.yaml, run.yaml, modes/*.yaml
