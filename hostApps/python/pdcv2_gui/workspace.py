@@ -17,7 +17,7 @@ from . import yamlio as Y
 
 RUN_SECTIONS = ("run", "pixels", "tcr", "dsum")
 _KEY = re.compile(r"^'?((?:run|pixels|tcr|dsum|hardware|behavior|pdc|controller)(?:\.\w+)+)")   # the key a validate() problem starts with
-MODE_ORDER = ("tcr", "dsum_rad", "dsum_coincidence", "dsum_single")
+MODE_ORDER = ("tcr", "dsum_rad", "dsum_coincidence", "dsum_trigger")
 DEFAULT_PINS = [
     ("run", "run.run_folder", "Run folder"),
     ("run", "run.head_id", "Head ID"),

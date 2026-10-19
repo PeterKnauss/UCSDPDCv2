@@ -1,0 +1,52 @@
+behavior:
+  export_h5: false
+  clear_hexread: true
+  power_supplies: true
+  per_pdc_pixel_off: false
+  allow_analog_only: false
+  pdc_pix_dis_args: "--mode NONE"
+
+pdc:
+  time: {hold_ns: 50.0, rech_ns: 10.0, flag_ns: 2.0}
+  PIXL:
+    active_qc_en: 1
+    trg_dgtl_fen: 0
+    flag_en: 1
+    edge_lvln: 1
+    dis_mem: 1
+  ANLG: 0x001F
+  STHL:
+    enable: 0            # comparator off; the FSM doesn't use it in external mode
+    low: 0
+  FIFO:
+    overwrite_dis: 0
+    enable: 1
+    sel_in: 0
+    depth: auto
+  OUTD: {func: DATA}
+  OUTF: {func: SUM_GT}
+  TRGC: 0x0000
+  OUTC: {data: CFG_VALID, flag: CLK_CS}
+
+controller:
+  packet:
+    SCSA: {pdc_status_all: 1}
+    SCDA: {}
+    SPDA: {preset: dsum}
+  fsm:
+    samples: {n_fast: 0, n_slow: 128, n_history: 28}
+    trigger_mode: 2      # EXTERNAL 1
+    slow_period: 0
+    timeout: {auto: 0, all_pdc: 1, retry: 1, period: 48}
+    end:  {enable: 1, mode: 2, delay: 0}
+    tx:   {enable: 1, cmd_mode: 1, mode: 2, cmd_delay: 0, cancel_send_rstn: 0, cancel_mode: 0}
+    atx:  {enable: 0, mode: 0, cmd_mode: 0, cmd_delay: 0, cancel_send_rstn: 0, cancel_mode: 0, n: 0}
+    acq:  {cancel_send_rstn: 0, cancel_mode: 0, overlap: 0, cmd_mode: 7}
+    misc: {tx_all_pdc: 1, acq_all_pdc: 1}
+  coincidence: {window: 1, nch_th: 1, num_bank: 1}   # unused in mode 2
+  apps:
+    stream_manager: {tlast_threshold: 500, timeout_s: 1}
+    aux_out:
+      - {channel: 0, func: 21}   # FSM_EXT1: the trigger as the controller sees it
+    aux_in:
+      - {func: 0, channel: 4}    # FSM_EXT1 <- AUXI_0
