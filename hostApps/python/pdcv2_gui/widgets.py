@@ -31,10 +31,11 @@ class ValueEditor(QWidget):
     """One editor for one config value. The widget follows the value's type: checkbox, choice, number, hex, text or YAML"""
     edited = Signal(object)
 
-    def __init__(self, value, options: list[str] | None = None, browse: bool = False):
+    def __init__(self, value, options: list[str] | None = None, browse: str | None = None):
         super().__init__()
         self.kind = self._kind(value, options)
         self._orig = value
+        self._browse_kind = browse
         self._busy = False
         self.base_tip = ""
         lay = QHBoxLayout(self)
@@ -128,7 +129,12 @@ class ValueEditor(QWidget):
             self.edited.emit(value)
 
     def _browse(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Choose file", str(Path(self.w.text()).parent) if self.w.text() else "")
+        """A folder chooser for a folder setting (user_data_dir), a file chooser for a file setting (tcr_file)"""
+        start = Path(self.w.text()).expanduser() if self.w.text() else Path()
+        if self._browse_kind == "dir":
+            path = QFileDialog.getExistingDirectory(self, "Choose folder", str(start if start.is_dir() else start.parent))
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, "Choose file", str(start.parent) if self.w.text() else "")
         if path:
             self.w.setText(path)
             self._typed(path)
@@ -138,8 +144,10 @@ class ValueEditor(QWidget):
         self.setToolTip(f"{message}\n\n{self.base_tip}" if message else self.base_tip)
 
 
-def is_path_key(key) -> bool:
-    return str(key).endswith(("_file", "_dir")) or str(key) in ("tcr_file", "user_data_dir")
+def is_path_key(key) -> str | None:
+    """'dir' for a folder setting (a name ending in _dir), 'file' for a file setting (ending in _file), else None"""
+    key = str(key)
+    return "dir" if key.endswith("_dir") else "file" if key.endswith("_file") else None
 
 
 class QuickPanel(QWidget):

@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 from typing import Iterable, Optional
 import yaml
+from .paths import run_folder_name
 from .power import check_addresses, check_profile
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
@@ -86,7 +87,11 @@ def apply_overrides(data: dict, overrides: Iterable[str]) -> dict:
         if parts[-1] not in node and not add_new:
             raise ConfigError(f"override '{item}': no key '{parts[-1]}' under '{'.'.join(parts[:-1])}' "
                               f"(valid: {sorted(node)}). Use +{key}=... to add a new key.")
-        node[parts[-1]] = yaml.safe_load(text)
+        try:
+            node[parts[-1]] = yaml.safe_load(text)
+        except yaml.YAMLError as ex:
+            raise ConfigError(f"override '{item}': the value is not valid YAML ({str(ex).splitlines()[0]}). "
+                              f"Put quotes around text that starts with {{ or [, like {key}=\"{{run.head_id}}_x\"") from ex
     return data
 
 def attach_profiles(data: dict, cdir: Path) -> None:
@@ -170,23 +175,33 @@ def validate(cfg: dict) -> None:
     check("dsum.bin_idx_mode", lambda v: v in _BIN_IDX, f"one of {_BIN_IDX}")
     check("hardware.zynq.ssh_host", lambda v: isinstance(v, str) and v, "the host name from ~/.ssh/config")
     check("hardware.zynq.sys_clk_period_ns", lambda v: isinstance(v, (int, float)) and v > 0, "a positive number")
-    # run_folder is a path: relative is inside hardware.paths.user_data_dir, a full path is used as it is
+    # run_folder is a path (relative is inside hardware.paths.user_data_dir, a full path is used as it is) that can have {section.key} fields
     need("run.run_folder")
     if isinstance(cfg.get("run"), dict) and "run_folder" in cfg["run"]:
-        folder, example = cfg["run"]["run_folder"], "such as tcr_10152026 or path/to/tcr_10152026"
-        if folder is None or (isinstance(folder, str) and not folder.strip()):
+        raw, example = cfg["run"]["run_folder"], "such as tcr_10152026 or path/to/tcr_H{run.head_id}"
+        folder = None
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
             problems.append(f"'run.run_folder' is empty: set the folder for this run, {example}")
-        elif not isinstance(folder, str):
-            problems.append(f"'run.run_folder' = {folder!r}: expected text, {example}")
-        elif any(ch < " " or ch == "\x7f" for ch in folder):
-            problems.append(f"'run.run_folder' = {folder!r}: has a control character (a newline or tab) in it")
+        elif not isinstance(raw, str):
+            problems.append(f"'run.run_folder' = {raw!r}: expected text, {example}")
         else:
             try:
-                path = Path(folder.strip()).expanduser()
-                if os.path.normpath(path) in (".", "..") or path == Path(path.anchor):
-                    problems.append(f"'run.run_folder' = {folder!r}: must name a folder for this run, not the data folder itself or its parent")
-            except RuntimeError as ex:
-                problems.append(f"'run.run_folder' = {folder!r}: cannot expand the ~ in it: {ex}")
+                folder = run_folder_name(cfg)
+            except ValueError as ex:
+                problems.append(f"'run.run_folder' = {raw!r}: {ex}")
+        if folder is not None:
+            shown = f"{raw!r}" + (f" (is {folder!r})" if folder != raw else "")
+            if not folder:
+                problems.append(f"'run.run_folder' = {shown}: is empty once its fields are filled in")
+            elif any(ch < " " or ch == "\x7f" for ch in folder):
+                problems.append(f"'run.run_folder' = {shown}: has a control character (a newline or tab) in it")
+            else:
+                try:
+                    path = Path(folder).expanduser()
+                    if os.path.normpath(path) in (".", "..") or path == Path(path.anchor):
+                        problems.append(f"'run.run_folder' = {shown}: must name a folder for this run, not the data folder itself or its parent")
+                except RuntimeError as ex:
+                    problems.append(f"'run.run_folder' = {shown}: cannot expand the ~ in it: {ex}")
     check("pdc", lambda v: isinstance(v, dict), "a section of PDC register values")
     check("controller", lambda v: isinstance(v, dict), "a section of controller register values")
 

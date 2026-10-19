@@ -158,19 +158,23 @@ class Workspace(QObject):
     def leaves(self, fid: str):
         return list(Y.walk(self.files[fid].data))
 
+    def config(self, mode: str, data: dict | None = None) -> Config:
+        """The config the script loads from these files: the working copy, or the files in data (by file id)"""
+        def plain(fid):
+            node = (data or {}).get(fid, self.files[fid].data) if fid in self.files else None
+            return (yaml.safe_load(Y.dumps(node)) or {}) if node is not None else {}
+        merged = deep_merge(deep_merge({"hardware": plain("hardware")}, plain(f"mode:{mode}")), plain("run"))
+        for c in merged["hardware"].get("supplies", {}).values():
+            if f"supply:{c.get('model')}" in self.files:
+                c["profile"] = plain(f"supply:{c.get('model')}")
+        cfg = Config(merged)
+        cfg.mode = mode
+        return cfg
+
     def problems(self, mode: str) -> dict[tuple[str, str], str]:
         """The script's own validate() on the settings on screen. Returns the problem of each key, by (file id, key)"""
-        def plain(fid):
-            return yaml.safe_load(Y.dumps(self.files[fid].data)) or {} if fid in self.files else {}
-        data = deep_merge(deep_merge({"hardware": plain("hardware")}, plain(f"mode:{mode}")), plain("run"))
-        for c in data["hardware"].get("supplies", {}).values():
-            profile = self.files.get(f"supply:{c.get('model')}")
-            if profile is not None:
-                c["profile"] = plain(profile.id)
-        cfg = Config(data)
-        cfg.mode = mode
         try:
-            validate(cfg)
+            validate(self.config(mode))
         except ConfigError as ex:
             found = ex.problems
         else:

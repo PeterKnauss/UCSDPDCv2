@@ -1,6 +1,7 @@
 """Lots of path management"""
 from __future__ import annotations
 import datetime
+import string
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -19,9 +20,34 @@ def resolve_paths(cfg) -> RunPaths:
         user = USER_DATA_DIR
     return RunPaths(user_data=Path(user).expanduser())
 
+def run_folder_name(cfg) -> str:
+    """
+    run.run_folder with its {section.key} fields filled in from the config, such as tcr_H{run.head_id}_{run.supply_V.keysight}V
+    {mode} is the mode name, {{ and }} are literal braces, and a format can follow a colon like {run.supply_V.keysight:05.1f}
+    """
+    out = []
+    for text, field, spec, conv in string.Formatter().parse(cfg["run"]["run_folder"]):
+        out.append(text)
+        if field is None:
+            continue
+        if conv:
+            raise ValueError(f"{{{field}!{conv}}}: conversions with ! are not supported")
+        if field == "run.run_folder":
+            raise ValueError("{run.run_folder} cannot be used inside run_folder")
+        node = getattr(cfg, "mode", "") if field == "mode" else cfg
+        for part in ([] if field == "mode" else field.split(".")):
+            key = next((k for k in node if str(k) == part), None) if isinstance(node, dict) else None
+            if key is None:
+                raise ValueError(f"{{{field}}}: no key '{part}' in the config")
+            node = node[key]
+        if isinstance(node, (dict, list)):
+            raise ValueError(f"{{{field}}} is a section or a list, not a single value")
+        out.append(format(node, spec) if spec else _num(node) if isinstance(node, float) else "" if node is None else str(node))
+    return "".join(out).strip()
+
 def run_dir(cfg, paths: RunPaths) -> Path:
-    """<user_data_dir>/<run.run_folder>, or run.run_folder itself when it is a full path. Every file a run writes goes in this folder"""
-    return paths.user_data / Path(cfg["run"]["run_folder"].strip()).expanduser()
+    """<user_data_dir>/<run_folder>, or run_folder itself when it is a full path. Every file a run writes goes in this folder"""
+    return paths.user_data / Path(run_folder_name(cfg)).expanduser()
 
 def _num(v) -> str:
     """25 -> '25', 25.0 -> '25', 25.5 -> '25.5'"""

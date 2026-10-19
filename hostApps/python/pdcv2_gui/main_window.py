@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QListWidget, QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter,
     QStackedWidget, QTableView, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
+from pdcv2_helpers.paths import run_folder_name
 from .dialogs import CustomJobDialog, SettingsDialog, SweepDialog, save_settings
 from .jobs import JOBS_DIR, Job, JobQueue, preflight
 from .widgets import FileEditor, LogView, QueueModel, QuickPanel, fmt_time
@@ -235,7 +236,10 @@ class MainWindow(QMainWindow):
         run, pixels = data["run"]["run"], data["run"].get("pixels", {})
         spad, volts = run.get("spad_supply"), run.get("supply_V") or {}
         meas = data["run"]["tcr"]["meas_time_s"] if mode == "tcr" else run.get("meas_time_s")
-        job.run_folder = str(run.get("run_folder") or "")
+        try:
+            job.run_folder = run_folder_name(self.ws.config(mode, data))
+        except ValueError:
+            job.run_folder = str(run.get("run_folder") or "")
         job.summary = " · ".join(x for x in (f"head {run.get('head_id')}", f"{spad} {volts.get(spad)} V" if spad else "", f"{meas} s") if x)
         diff = self.ws.diff_vs_saved(data)
         job.details = ("Differs from the saved files:\n" + "\n".join(diff)) if diff else "Same as the saved files"
