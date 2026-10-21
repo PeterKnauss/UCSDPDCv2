@@ -26,6 +26,9 @@ def _dec(x: float) -> str:
     return s + "0" if s.endswith(".") else s
 
 
+# Every supply waits this long at its target voltage after the ramp up, so the bias settles before anything is measured
+RAMP_UP_SETTLE_S = 1.5
+
 _REQUIRED = ("terminations", "idn", "set_voltage", "health", "arm", "disarm")
 
 # Options of open_resource that the model file sets
@@ -221,7 +224,8 @@ class PowerSupply:
         for v in self.up_levels():
             self.sleep(self.cfg["step_delay_s"])
             self.set_voltage(v)
-        print(f"{self.name} is supplied")
+        print(f"{self.name} is supplied. Waiting {RAMP_UP_SETTLE_S:g} s to settle")
+        self.sleep(RAMP_UP_SETTLE_S)
 
     def ramp_down(self) -> None:
         """Ramps the supply down from the last voltage sent"""
