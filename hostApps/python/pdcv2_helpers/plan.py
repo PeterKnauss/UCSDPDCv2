@@ -13,6 +13,7 @@ order by using different groupings
     plan["zynq_apps"]    # auxOut / auxIn / set-ctl-tmr-prd / set-ctl-zpp-prd commands
     plan["fsm_command"]  # FSMM start_mode = 1 (TCR: FSM triggered by a command, after HV)
     plan["start_fsm"]    # FSMM with start_mode = 3    (after HV is applied)
+    plan["stop_fsm"]     # FSMM with start_mode = 0    (end of the measurement, before the supplies ramp down)
 
 A stage function sends one group at the right moment; this file only decides WHAT is sent.
 """
@@ -84,7 +85,7 @@ def _w(name: str, value: int, note: str = "") -> RegWrite:
 
 def build_plan(cfg: Mapping) -> dict[str, list]:
     plan: dict[str, list] = {k: [] for k in
-        ("packet", "fsm", "pdc", "pdc_final", "stream", "interfaces", "coincidence", "zynq_apps", "external", "trigger_gen", "fsm_command", "start_fsm")}
+        ("packet", "fsm", "pdc", "pdc_final", "stream", "interfaces", "coincidence", "zynq_apps", "external", "trigger_gen", "fsm_command", "start_fsm", "stop_fsm")}
     mask = cfg.get("enable_mask", 0xF)
     ctl = cfg.get("controller", {})
     pdc = cfg.get("pdc", {})
@@ -151,6 +152,8 @@ def build_plan(cfg: Mapping) -> dict[str, list]:
         misc = fsm_cfg["misc"]
         plan["start_fsm"].append(_w("FSMM", REGS["FSMM"].pack(tx_all_pdc=misc["tx_all_pdc"],
                                                               acq_all_pdc=misc["acq_all_pdc"], start_mode=3)))
+        plan["stop_fsm"].append(_w("FSMM", REGS["FSMM"].pack(tx_all_pdc=misc["tx_all_pdc"],
+                                                             acq_all_pdc=misc["acq_all_pdc"], start_mode=0)))
     return plan
 
 def commands(group: list) -> list[str]:
