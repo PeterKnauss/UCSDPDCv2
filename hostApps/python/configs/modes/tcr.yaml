@@ -1,5 +1,6 @@
 behavior:                  
   zpp_period_from_meas_time: true   # Bool - Required for TCR. Sets the wait time for ZPP data ACQ to be the same as measurement time
+  ucr_ccr: false                    # Bool - Measure every SPAD with the ZPP method to also get UCR and CCR (mode tcr_ucr_ccr). Settings are in the ucr_ccr section of run.yaml
   clear_hexread: true               # Bool - run clearHexRead() on session startup
   power_supplies: true              # Bool - Initialize power supplies automatically
   pdc_pix_dis_args: ""              # Str  - Argument to append to the end of pdcPix --dis command

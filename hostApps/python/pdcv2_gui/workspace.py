@@ -15,9 +15,9 @@ from PySide6.QtCore import QObject, Signal
 from pdcv2_helpers.config import Config, ConfigError, deep_merge, validate
 from . import yamlio as Y
 
-RUN_SECTIONS = ("run", "pixels", "tcr", "dsum")
-_KEY = re.compile(r"^'?((?:run|pixels|tcr|dsum|hardware|behavior|pdc|controller)(?:\.\w+)+)")   # the key a validate() problem starts with
-MODE_ORDER = ("tcr", "dsum_rad", "dsum_coincidence", "dsum_trigger")
+RUN_SECTIONS = ("run", "pixels", "tcr", "ucr_ccr", "dsum")
+_KEY = re.compile(r"^'?((?:run|pixels|tcr|ucr_ccr|dsum|hardware|behavior|pdc|controller)(?:\.\w+)+)")   # the key a validate() problem starts with
+MODE_ORDER = ("tcr", "tcr_ucr_ccr", "dsum_rad", "dsum_coincidence", "dsum_trigger")
 DEFAULT_PINS = [
     ("run", "run.run_folder", "Run folder"),
     ("run", "run.head_id", "Head ID"),
@@ -31,6 +31,8 @@ DEFAULT_PINS = [
     ("run", "pixels.source", "Pixel source"),
     ("run", "pixels.tcr_file", "TCR file"),
     ("run", "tcr.meas_time_s", "TCR meas time (s)"),
+    ("run", "ucr_ccr.n_zpp_cycles", "UCR/CCR ZPP cycles"),
+    ("run", "ucr_ccr.zpp_period_s", "UCR/CCR ZPP period (s, empty = auto)"),
     ("mode:*", "behavior.power_supplies", "Ramp supplies automatically"),
 ]
 

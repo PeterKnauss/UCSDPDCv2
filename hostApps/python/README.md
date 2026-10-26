@@ -1,7 +1,7 @@
 # PDCv2 helpers
 
 One initializer for the PDCv2 acquisition scripts: a config loader, a register plan and a session object shared by the
-TCR scan and the three DSUM modes. Settings live in YAML files.
+TCR scans (with or without UCR and CCR) and the three DSUM modes. Settings live in YAML files.
 
 ## Install
 
@@ -20,7 +20,7 @@ The acquisition runs need Linux, the host the dev kit is set up for. These parts
 - `h5Reader`, and with it `plotDsum.py`, which list files with `ls`.
 - A graceful Stop in the GUI: the scripts ramp the supplies down on Ctrl-C, which only Linux can send to a running job.
 
-That covers `run_tcr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `run_dsum_single.py`, `validatePDCCommunication.py` and `openCtlDataComm.py`.
+That covers `run_tcr.py`, `run_tcr_ucr_ccr.py`, `run_dsum_rad.py`, `run_dsum_coincidence.py`, `run_dsum_trigger.py`, `validatePDCCommunication.py` and `openCtlDataComm.py`.
 Reading and editing the config files, `--show-config` and the GUI do not touch the bench, so they can be used on other
 systems to prepare configs or try the GUI offline. A job that reaches the bench fails there with a clear error.
 
@@ -28,8 +28,9 @@ systems to prepare configs or try the GUI offline. A job that reaches the bench 
 
     python run_dsum_rad.py run.head_id=48 run.supply_V.keysight=49 run.run_folder=Co57_10152026
     python run_dsum_coincidence.py --run my_run.yaml
-    python run_dsum_single.py run.run_folder=single_10192026
+    python run_dsum_trigger.py run.run_folder=trigger_10192026
     python run_tcr.py tcr.meas_time_s=0.5 run.n_spad=64
+    python run_tcr_ucr_ccr.py ucr_ccr.n_zpp_cycles=2000 run.n_spad=64
     python run_dsum_rad.py --batch          # no prompts, no figure window
     python run_dsum_rad.py --show-config    # print the resolved config and exit
 
@@ -109,9 +110,9 @@ To add a supply: connect to it with pyvisa and try the commands by hand, copy th
 
 ### `modes/<mode>.yaml`
 
-One file per mode: `tcr` (total count rate of every SPAD), `dsum_rad` (digital sum with a radiation source), `dsum_coincidence` (digital sum when several PDCs hit in the coincidence window) and `dsum_single` (digital sum when one photon hits any PDC). Each one is self contained, nothing is shared between them, so values repeated in the four files are on purpose. The mode is picked by the script you run. Each file has three sections:
+One file per mode: `tcr` (total count rate of every SPAD), `tcr_ucr_ccr` (the same scan with the total, uncorrelated and correlated count rates of every SPAD), `dsum_rad` (digital sum with a radiation source), `dsum_coincidence` (digital sum when several PDCs hit in the coincidence window) and `dsum_trigger` (digital sum on an external trigger). Each one is self contained, nothing is shared between them, so values repeated in the files are on purpose. The mode is picked by the script you run. Each file has three sections:
 
-- `behavior` - Choices that are not registers. `export_h5` creates an h5 file in the run folder (DSUM). `clear_hexread` runs clearHexRead() on startup. `power_supplies` ramps the supplies in hardware.yaml automatically, and false asks you to apply HV by hand. `per_pdc_pixel_off` uses the manual PDC masking in run.yaml. `allow_analog_only` allows analog only mode. `pdc_pix_dis_args` is added to the end of the `pdcPix --dis` command. `zpp_period_from_meas_time` (TCR only) sets the ZPP wait time to the measurement time.
+- `behavior` - Choices that are not registers. `export_h5` creates an h5 file in the run folder (DSUM). `clear_hexread` runs clearHexRead() on startup. `power_supplies` ramps the supplies in hardware.yaml automatically, and false asks you to apply HV by hand. `per_pdc_pixel_off` uses the manual PDC masking in run.yaml. `allow_analog_only` allows analog only mode. `pdc_pix_dis_args` is added to the end of the `pdcPix --dis` command. `zpp_period_from_meas_time` (TCR) sets the ZPP wait time to the measurement time. `ucr_ccr` (TCR) measures every SPAD with the ZPP method for UCR and CCR too, see below. It is true in `tcr_ucr_ccr.yaml`, and `behavior.ucr_ccr=true` does the same in `run_tcr.py`.
 - `pdc` - Register values written to every PDC: `time` (hold, recharge and flag times in ns), `PIXL`, `ANLG`, `STHL`, `FIFO`, `OUTD`, `OUTF`, `TRGC` and `OUTC`. The names are the register names.
 - `controller` - Register values of the Controller and the commands run on the Zynq. `packet` is what data is sent, `fsm` is the acquisition timing (samples, trigger mode, timeout, end, tx), `interfaces` and `coincidence` are the interface and coincidence registers, and `apps` are the Zynq commands like streamManager, auxOut and auxIn.
 
@@ -122,16 +123,35 @@ Edit it between runs. It is the same for every mode.
 - `run` - `run_folder` is the folder this run is saved in, such as `tcr_10152026` or `path/to/tcr_10152026` (a relative path is made inside `hardware.paths.user_data_dir`, a full path is used as it is). It can have `{section.key}` fields that are filled in from the config when the run starts, such as `tcr_H{run.head_id}_{run.supply_V.keysight}V` (`{mode}` is the mode name, `{{` and `}}` are literal braces, and a format can follow a colon, like `{run.supply_V.keysight:.1f}`). Quote the text when it starts with `{`, in the file and on the command line (`run.run_folder="{mode}_H{run.head_id}"`). It is required, and the run stops with a config error when it is empty. 
 - `pixels` - Which SPADs are on for DSUM. `source: tcr_file` finds screamers from the TCR file in `tcr_file` (a full path str) and `source: all` turns off screamer masking. `screamer` picks how to find screamers: `method` is constant, average, percent, medianFactor or medianToMin, and `threshold`, `percent` and `factor` are the numbers the method uses. `mask` is the area that is on (`cx`, `cy`, `width`, `height`, and `checker` for a checkerboard). `show_mask` shows the mask at the start. `per_pdc_off` are areas to turn off in each PDC when `per_pdc_pixel_off` is true.
 - `tcr` - `meas_time_s` is the time per TCR measurement. `screamer` is the same as above but for TCR.
+- `ucr_ccr` - Only used when `behavior.ucr_ccr` is true, see below. `n_zpp_cycles` is the number of ZPP bins measured per SPAD, `zpp_period_s` is the ZPP period (empty finds it for each SPAD) and `max_meas_time_s` is the longest measurement of one SPAD.
 - `dsum` - Options for the dsum module of hexRead. `data_type` is all, NZ, NZKF, dt or max and `bin_idx_mode` is time, continuous or frame.
 
 Use `--run FILE` to run with a different run file, so you can keep one for each setup.
+
+### TCR, UCR and CCR
+
+`run_tcr_ucr_ccr.py` scans the SPADs like `run_tcr.py` (one SPAD on at a time, every enabled PDC at once) but measures each one with the Zero Photon Probability (ZPP) method, which separates the counts that follow an earlier count (afterpulses, crosstalk) from the ones that do not. The Controller ZPP module cuts time into bins of one ZPP period and gives the number of bins (`BIN`), the empty ones (`NUL`), the counts (`TOT`) and the period in clock cycles (`PRD`). From them:
+
+    TCR = (TOT / BIN) / period              total count rate, every count
+    UCR = -ln(NUL / BIN) / period           uncorrelated count rate (dark counts), from the chance of an empty bin
+    CCR = (TCR - UCR) / TCR                 correlated fraction, the afterpulse probability when one SPAD is on
+
+For each SPAD, with `ucr_ccr.zpp_period_s` empty:
+
+1. Measure TCR for `tcr.meas_time_s` with a ZPP period of the same length.
+2. Set the ZPP period to `1 / (5 * TCR)`, so a bin holds 0.2 counts on average. With several PDCs the mean TCR of the PDCs sets the one period they share, so one PDC at a time (`run.pdc_enable=0x1`) gives better results.
+3. Measure `ucr_ccr.n_zpp_cycles` bins, a measurement of `n_zpp_cycles * period`, and read TCR, UCR and CCR.
+
+A fixed `zpp_period_s` skips steps 1 and 2. The UCR needs at least one empty bin, so a SPAD with no empty bins (period too long) has no UCR and CCR. A SPAD with no counts keeps TCR 0 and has no CCR. `max_meas_time_s` shortens `n_zpp_cycles` for slow SPADs so a scan of 4096 SPADs per PDC takes a known time at most (a SPAD that cannot fit 10 bins gets the TCR of step 1 only). The slower the SPAD, the longer its measurement: at 100 cps the default 5000 bins take 10 s, which is the default `max_meas_time_s`, and at 10 cps the 5000 bins would take 100 s so only 500 are measured. The number of bins of each SPAD is in the `SPAD_BIN<n>` column. A scan of 4096 SPADs takes hours at these settings, so lower `n_zpp_cycles` or `max_meas_time_s`, or use a smaller `run.n_spad`.
+
+After the scan the TCR goes through the same screamer identification as `run_tcr.py`, and the CSV is used by the DSUM modes through `pixels.tcr_file` like any TCR file. It has the TCR columns of a TCR scan and these per PDC: `SPAD_UCR<n>` (cps), `SPAD_CCR<n>` (percent), and the ZPP values `SPAD_AVG<n>`, `SPAD_BIN<n>`, `SPAD_NUL<n>`, `SPAD_PRD<n>` and `SPAD_TOT<n>`. The ones that could not be calculated are empty. The figure adds a UCR and a CCR plot under the TCR ones.
 
 ### Where data goes
 
 `hardware.paths.user_data_dir` is the parent of all data (empty uses the `USER_DATA_DIR` environment variable). Each run writes into its own folder inside it, named by `run.run_folder` (any relative path, with `{section.key}` fields filled in, such as `path/to/this_folder`; a full path such as `/data/other/this_folder` is used as it is and ignores `user_data_dir`):
 
     <user_data_dir>/<run_folder>/
-        <date>_<mode>_...csv                  DSUM data, or <date>_TCR_...csv for a TCR scan
+        <date>_<mode>_...csv                  DSUM data, or <date>_TCR_...csv for a TCR scan, <date>_TCR_UCR_CCR_...csv with UCR and CCR
         <same name>.h5                        DSUM with behavior.export_h5
         <same name>.txt, _config.yaml         pixel enabling log and the config used
         <same name>_pixelMap_<n>.png          the mask of each PDC
@@ -145,7 +165,7 @@ Any key can be changed for one run with `section.key=value`, like `run.head_id=4
 
 ## Layout
 
-    run_tcr.py  run_dsum_rad.py  run_dsum_coincidence.py  run_dsum_single.py   entry scripts
+    run_tcr.py  run_tcr_ucr_ccr.py  run_dsum_rad.py  run_dsum_coincidence.py  run_dsum_trigger.py   entry scripts
     run_gui.py                                             control GUI entry script
     pdcv2_gui/                                             control GUI (config editor, job queue, log)
     configs/                                               hardware.yaml, run.yaml, modes/*.yaml
@@ -157,4 +177,5 @@ Any key can be changed for one run with `section.key=value`, like `run.head_id=4
     pdcv2_helpers/pixels.py                                which SPADs to enable (TCR file -> screamer threshold -> mask -> pixel registers)
     pdcv2_helpers/power.py                                 PowerSupply: find, connect, health check, protections, ramp up/down. Driven by config
     pdcv2_helpers/paths.py                                 data folders and file names
+    pdcv2_helpers/zpp.py                                   ZPP period and measurement length for the UCR/CCR scan
     pdcv2_helpers/modes/                                   Mode base class, DsumMode, TcrMode, TcrPlotter

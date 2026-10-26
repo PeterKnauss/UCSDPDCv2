@@ -235,7 +235,7 @@ class MainWindow(QMainWindow):
                 return None
         run, pixels = data["run"]["run"], data["run"].get("pixels", {})
         spad, volts = run.get("spad_supply"), run.get("supply_V") or {}
-        meas = data["run"]["tcr"]["meas_time_s"] if mode == "tcr" else run.get("meas_time_s")
+        meas = data["run"]["tcr"]["meas_time_s"] if mode.startswith("tcr") else run.get("meas_time_s")
         try:
             job.run_folder = run_folder_name(self.ws.config(mode, data))
         except ValueError:

@@ -5,6 +5,11 @@ For every SPAD of every enabled PDC: enable only that SPAD, reset the Controller
 ask for one data packet, read the ZPP average from the HDF5 file. Then identify screamers, save a CSV, and leave only
 the PDC configuration (all SPADs off) behind. The CSV is what the DSUM modes read through pixels.tcr_file.
 
+With behavior.ucr_ccr (mode tcr_ucr_ccr) every SPAD is measured with the Zero Photon Probability (ZPP) method instead:
+a short measurement sets the ZPP period from the SPAD's own count rate, then a measurement of ucr_ccr.n_zpp_cycles
+periods gives the total (TCR), uncorrelated (UCR) and correlated (CCR) count rates. TCR goes through the same screamer
+identification and the same CSV (with the UCR, CCR and ZPP columns added), so the file is used by DSUM like any TCR file.
+
 If the scan thread fails, it stops and the error is re-raised in the main thread.
 """
 from __future__ import annotations
@@ -16,8 +21,9 @@ import numpy as np
 from ..config import dump
 from ..paths import bias_str, head_str, run_dir, tag_voltage
 from ..session import section
+from ..zpp import cycles_for, optimal_period, set_zpp_module, zpp_items
 from .base import Mode
-from .tcr_plotter import TcrPlotter
+from .tcr_plotter import TcrPlotter, TcrUcrCcrPlotter
 
 # Enumerators to make comparing statuses easier
 class ScreamerMethod(IntEnum):
@@ -38,6 +44,7 @@ class TcrMode(Mode):
         self.tp: TcrPlotter | None = None
         self.scan_error: BaseException | None = None
         self.meas_time = float(self.cfg["tcr"]["meas_time_s"])
+        self.ucr_ccr = bool(self.cfg["behavior"].get("ucr_ccr"))
         self.test_stop_time: float | None = None
         self.tmp_h5: Path | None = None
 
@@ -65,10 +72,9 @@ class TcrMode(Mode):
             if datetime.datetime.now() - t0 > datetime.timedelta(seconds=timeout_s):
                 raise TimeoutError(f"timeout while waiting for HDF5 data ({timeout_s} seconds)")
 
-    def measure(self, n_pdc, spad_row=None, spad_col=None, spad_index=None) -> list[float]:
-        """Measure a single SPAD, reset ZPP, wait, average over each PDC"""
-        s = self.session
-        client = s.client
+    def _select_spad(self, spad_row=None, spad_col=None, spad_index=None) -> None:
+        """Enable only this SPAD, by row and column (4096 SPADs) or by index"""
+        client = self.session.client
         # Choose which command to run based off what was fed into the function
         if spad_row is not None and spad_col is not None:
             client.runPrint(f"pdcPix --dis --row {spad_row} --col {spad_col} --mode NONE")
@@ -76,6 +82,11 @@ class TcrMode(Mode):
             client.runPrint(f"pdcPix --dis --index {spad_index} --mode NONE")
         else:
             print("pixel/SPAD not specified")
+
+    def measure(self, n_pdc, spad_row=None, spad_col=None, spad_index=None) -> list[float]:
+        """Measure a single SPAD, reset ZPP, wait, average over each PDC"""
+        client = self.session.client
+        self._select_spad(spad_row, spad_col, spad_index)
 
         client.runPrint("ctlCmd -c MODE_ACQ; ctlCmd -c RSTN_ZPP; "
                         f"sleep {self.meas_time:.06f}; ctlCmd -c PACK_TRG_A; ")
@@ -92,6 +103,63 @@ class TcrMode(Mode):
                 print(f"  PDC {i_pdc} TCR = {avg[i_pdc]}")
         db.h5Close()
         return avg
+
+    def measure_zpp(self, n_pdc, wait_s: float) -> list:
+        """Reset ZPP, wait, read the ZPP values of each PDC and calculate TCR, UCR and CCR. None for a PDC without data"""
+        self.session.client.runPrint("ctlCmd -c MODE_ACQ; ctlCmd -c RSTN_ZPP; "
+                                     f"sleep {wait_s:.06f}; ctlCmd -c PACK_TRG_A; ")
+        db = self._wait_for_h5()
+        db.h5Open()
+        zpp = [None] * n_pdc
+        for i_pdc in range(n_pdc):
+            z = db.getPdcZPP(iPdc=i_pdc, zppList=zpp_items())
+            if z is not None and z.AVG != -1:
+                z.process()
+                zpp[i_pdc] = z
+        db.h5Close()
+        return zpp
+
+    def measure_ucr_ccr(self, n_pdc, spad_row=None, spad_col=None, spad_index=None) -> tuple[list[float], list]:
+        """
+        Measure a single SPAD with the ZPP method. Returns the TCR of each PDC (-1 without data) and its ZPP values.
+        ZPP period = ucr_ccr.zpp_period_s, or when empty 1 / (5 * TCR) of this SPAD from a first tcr.meas_time_s measurement.
+        The measurement is n_zpp_cycles periods long, shortened to ucr_ccr.max_meas_time_s. A SPAD with no counts, or too
+        slow for MIN_ZPP_BINS periods to fit, keeps the TCR of the first measurement and has no UCR or CCR.
+        """
+        u = self.cfg["ucr_ccr"]
+        clk = self.session.icp.sysClkPrd
+        self._select_spad(spad_row, spad_col, spad_index)
+
+        first = None
+        if u["zpp_period_s"] is None:
+            set_zpp_module(self.session.client, self.meas_time, clk)
+            first = self.measure_zpp(n_pdc, self.meas_time)
+            period = optimal_period(first, clk)
+        else:
+            period = float(u["zpp_period_s"])
+
+        n_cycles = cycles_for(period, int(u["n_zpp_cycles"]), u["max_meas_time_s"]) if period else 0
+        if n_cycles:
+            if n_cycles < int(u["n_zpp_cycles"]):
+                print(f"  measuring {n_cycles} ZPP bins instead of {int(u['n_zpp_cycles'])} (ucr_ccr.max_meas_time_s)")
+            set_zpp_module(self.session.client, period, clk)
+            zpp = self.measure_zpp(n_pdc, period * n_cycles)
+        elif first is not None:
+            zpp = first
+            print("  no UCR/CCR for this SPAD: " + ("no counts" if period is None else
+                  f"ZPP period of {period:.3E} s is too long for ucr_ccr.max_meas_time_s"))
+        else:
+            zpp = [None] * n_pdc
+            print("  no UCR/CCR for this SPAD: ucr_ccr.zpp_period_s is too long for ucr_ccr.max_meas_time_s")
+
+        tcr = [z.TCR if z is not None else -1 for z in zpp]
+        for i_pdc, z in enumerate(zpp):
+            if z is not None:
+                ucr = f"{z.UCR:.1f}" if z.UCR >= 0 else "n/a"
+                ccr = f"{100 * z.CCR:.2f}%" if z.CCR >= 0 else "n/a"
+                print(f"  PDC {i_pdc} TCR = {z.TCR:<10.1f} UCR = {ucr:<10} CCR = {ccr:<8} "
+                      f"(NUL = {z.NUL:.0f} BIN = {z.BIN:.0f} PRD = {z.PRD:.0f})")
+        return tcr, zpp
 
     def scan_all_pixels(self, tp: TcrPlotter, update: bool = False) -> None:
         """Iterate over all pixels and run a measurement"""
@@ -115,9 +183,12 @@ class TcrMode(Mode):
                     else:
                         idx, row, col = None, i_row, i_col
                         i_spad = pixMap.idx_map(y=row, x=col) if icp.nSpad == 4096 else i_col
-                    avg = self.measure(tp.nPdcMax, spad_index=idx, spad_row=row, spad_col=col)
+                    if self.ucr_ccr:
+                        avg, zpp = self.measure_ucr_ccr(tp.nPdcMax, spad_index=idx, spad_row=row, spad_col=col)
+                    else:
+                        avg, zpp = self.measure(tp.nPdcMax, spad_index=idx, spad_row=row, spad_col=col), [None] * tp.nPdcMax
                     for i_pdc in range(tp.nPdcMax):
-                        tp.newData(iPdc=i_pdc, iSpad=i_spad, avg=avg[i_pdc])
+                        tp.newData(iPdc=i_pdc, iSpad=i_spad, avg=avg[i_pdc], zpp=zpp[i_pdc])
                     tp.current_pixel_index = i_spad
                     if update:
                         tp.updatePlot()
@@ -165,10 +236,11 @@ class TcrMode(Mode):
         s.send("fsm_command")
 
         data_dir = run_dir(cfg, s.paths)
-        self.tp = tp = TcrPlotter(figName="TCR PLOTTER", nPdcMax=icp.nPdcMax, nSpad=icp.nSpad,
-                                  data_path=data_dir, meas_time_s=self.meas_time,
-                                  head_str=head_str(r.get("head_id")), bias_str=bias_str(tag_voltage(r)),
-                                  name=r.get("name") or "", doSavePlot=False)
+        plotter = TcrUcrCcrPlotter if self.ucr_ccr else TcrPlotter
+        self.tp = tp = plotter(figName="TCR PLOTTER", nPdcMax=icp.nPdcMax, nSpad=icp.nSpad,
+                               data_path=data_dir, meas_time_s=self.meas_time,
+                               head_str=head_str(r.get("head_id")), bias_str=bias_str(tag_voltage(r)),
+                               name=r.get("name") or "", doSavePlot=False)
         try:
             section("Loop for each SPAD to measure its TCR")
             thread = threading.Thread(target=self.scan_all_pixels, args=[tp])
@@ -189,6 +261,12 @@ class TcrMode(Mode):
                     n = tp.countValidSpads(i_pdc)
                     print(f"  PDC {i_pdc} total TCR = {tp.pdcTcrAll[i_pdc]: <8} "
                           f"({tp.getPerSpadAvgTcr(i_pdc): <8.01f} per SPAD for {n} SPADs)")
+
+            if self.ucr_ccr:
+                section("Median TCR, UCR and CCR of the SPADs")
+                for i_pdc in range(icp.nPdcMax):
+                    if tp.pdcValid[i_pdc]:
+                        print(f"  PDC {i_pdc} {tp.summary(i_pdc)}")
 
             section("Identify the screamer pixels")
             sc = cfg["tcr"]["screamer"]

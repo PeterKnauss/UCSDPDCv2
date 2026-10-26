@@ -43,6 +43,11 @@ tcr:
     percent: 90.0
     factor: 1.5
 
+ucr_ccr:             # Mode tcr_ucr_ccr, where each SPAD is measured with the ZPP method for UCR and CCR. TCR meas_time_s above is the first, short measurement
+  n_zpp_cycles: 5000   # Int   - ZPP bins measured per SPAD. The measurement of a SPAD is n_zpp_cycles * ZPP period long. At least 10
+  zpp_period_s: null   # Float - ZPP period (bin width) in seconds. Empty finds it for each SPAD as 1 / (5 * TCR) from a first measurement of tcr.meas_time_s. A fixed value skips that measurement
+  max_meas_time_s: 10  # Float - Longest measurement of one SPAD in seconds. Shortens n_zpp_cycles to fit. A SPAD too slow for 10 bins gets TCR only. Empty for no limit
+
 dsum:
   data_type: NZKF     # Str - all | NZ | NZKF | dt | max
   bin_idx_mode: time  # Str - time | continuous | frame

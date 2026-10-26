@@ -25,9 +25,10 @@ from typing import Iterable, Optional
 import yaml
 from .paths import run_folder_name
 from .power import check_addresses, check_profile
+from .zpp import MIN_ZPP_BINS
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
-MODES = ("tcr", "dsum_coincidence", "dsum_rad", "dsum_trigger")
+MODES = ("tcr", "tcr_ucr_ccr", "dsum_coincidence", "dsum_rad", "dsum_trigger")
 
 
 class ConfigError(ValueError):
@@ -171,6 +172,17 @@ def validate(cfg: dict) -> None:
     check("pixels.screamer.method", lambda v: v in _SCREAMER, f"one of {_SCREAMER}")
     check("tcr.screamer.method",
           lambda v: v in _SCREAMER + ("threshold",), f"one of {_SCREAMER}")
+    if cfg.get("behavior", {}).get("ucr_ccr"):
+        check("ucr_ccr.n_zpp_cycles", lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= MIN_ZPP_BINS,
+              f"an integer of at least {MIN_ZPP_BINS}")
+        check("ucr_ccr.zpp_period_s", lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0,
+              "a positive number of seconds, or empty to set it from each SPAD's TCR")
+        check("ucr_ccr.max_meas_time_s", lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0,
+              "a positive number of seconds, or empty for no limit")
+        period, limit = cfg.get("ucr_ccr", {}).get("zpp_period_s"), cfg.get("ucr_ccr", {}).get("max_meas_time_s")
+        if isinstance(period, (int, float)) and isinstance(limit, (int, float)) and 0 < limit < period * MIN_ZPP_BINS:
+            problems.append(f"'ucr_ccr.zpp_period_s' = {period!r}: {MIN_ZPP_BINS} bins take longer than "
+                            f"ucr_ccr.max_meas_time_s = {limit!r}, so no SPAD could be measured")
     check("dsum.data_type", lambda v: v in _DSUM_DATA, f"one of {_DSUM_DATA}")
     check("dsum.bin_idx_mode", lambda v: v in _BIN_IDX, f"one of {_BIN_IDX}")
     check("hardware.zynq.ssh_host", lambda v: isinstance(v, str) and v, "the host name from ~/.ssh/config")
@@ -231,7 +243,7 @@ def plan_cfg(cfg: dict) -> dict:
         enable_mask       <- run.pdc_enable
         sys_clk_period_s  <- hardware.zynq.sys_clk_period_ns
         OUTF function     <- FLAG when run.analog_only (flag pin carries the flag, not the sum threshold)
-        ZPP period        <- tcr.meas_time_s when behavior.zpp_period_from_meas_time (TCR)
+        ZPP period        <- tcr.meas_time_s when behavior.zpp_period_from_meas_time (TCR, TCR UCR CCR)
     """
     out = {
         "enable_mask": int(cfg["run"]["pdc_enable"]),

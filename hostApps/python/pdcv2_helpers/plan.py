@@ -31,8 +31,9 @@ def cmd_aux_out(channel, func, n=None) -> str:
 def cmd_aux_in(func, channel) -> str:
     return f"auxIn --func {func} --channel {channel} -g"
 
-def cmd_set_zpp_prd(seconds) -> str:
-    return f"set-ctl-zpp-prd {seconds}"
+def cmd_set_zpp_prd(seconds, off_seconds=None) -> str:
+    """ZPP period. off_seconds is the low time between periods (the UCR/CCR scan gives one clock period)"""
+    return f"set-ctl-zpp-prd {seconds}" + (f" {off_seconds}" if off_seconds is not None else "")
 
 def cmd_set_tmr_prd(freq) -> str:
     return f"set-ctl-tmr-prd FREQ={freq}"

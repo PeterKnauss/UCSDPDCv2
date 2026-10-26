@@ -13,9 +13,13 @@ import numpy as np
 import pandas as pd
 
 from pdcv2_modules.fgColors import fgColors
+from ..zpp import clean
 
 
 class TcrPlotter:
+    nRows = 1            # rows of plots. The TCR plot and the histogram are the first row
+    fileTag = "TCR"      # name of the data file after the date
+
     def __init__(self, figName, nPdcMax, nSpad, data_path, meas_time_s, head_str="", bias_str="", name="",
                  doSavePlot=False, doSaveGif=False):
 
@@ -74,7 +78,7 @@ class TcrPlotter:
         """
         plt.close('all')
         plt.ion()
-        self.fig, self.axes = plt.subplots(nrows=1, ncols=2,
+        self.fig, self.axes = plt.subplots(nrows=self.nRows, ncols=2,
                                            figsize=(16,9), constrained_layout=True,
                                            num=self.figName)
         self.fig.get_layout_engine().set(w_pad=0.1, h_pad=0.1, hspace=0.05, wspace=0.05)
@@ -202,9 +206,9 @@ class TcrPlotter:
         self.checkExit()
 
 
-    def newData(self, iPdc, iSpad, avg):
+    def newData(self, iPdc, iSpad, avg, zpp=None):
         """
-        add new data to the class
+        add new data to the class. zpp (the ZPP values of the SPAD) is used by TcrUcrCcrPlotter
         """
         if avg < 0:
             self.pdcValid[iPdc] = False
@@ -317,9 +321,15 @@ class TcrPlotter:
     def getFileName(self):
         if self.dataFileName == "":
             dateStr=datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%S")
-            self.dataFileName = f"{dateStr}_TCR_{self.headStr}{int(self.measTime*1000):d}ms{self.spadBiasStr}"
+            self.dataFileName = f"{dateStr}_{self.fileTag}_{self.headStr}{int(self.measTime*1000):d}ms{self.spadBiasStr}"
         return self.dataFileName
 
+
+    def extraColumns(self, iPdc):
+        """
+        (name, data) of columns added to the CSV after the TCR columns of this PDC
+        """
+        return []
 
     def saveData(self):
         """
@@ -343,6 +353,8 @@ class TcrPlotter:
                 df = pd.concat([df, dfNew], axis=1)
                 dfNew = pd.DataFrame(data=self.spadPop[iPdc], columns=[f"SPAD_distribution{iPdc}"])
                 df = pd.concat([df, dfNew], axis=1)
+                for column, data in self.extraColumns(iPdc):
+                    df = pd.concat([df, pd.DataFrame({column: data})], axis=1)
 
         if df.size > 0:
             filename = f"{self.getFileName()}{pdcStr}{self.name}.csv"
@@ -394,6 +406,103 @@ class TcrPlotter:
         """
         self.fig.canvas.draw_idle()
         self.fig.canvas.start_event_loop(pauseTime)
+
+
+class TcrUcrCcrPlotter(TcrPlotter):
+    """
+    TcrPlotter with the UCR and CCR of every SPAD. Adds two plots under the TCR ones (UCR in cps and CCR in percent
+    against the SPAD index) and the UCR, CCR and ZPP values as columns of the CSV. NaN where a value could not be calculated.
+    """
+    nRows = 2
+    fileTag = "TCR_UCR_CCR"
+    axUcr = 2
+    axCcr = 3
+    zppColumns = ("AVG", "BIN", "NUL", "PRD", "TOT")
+
+    def __init__(self, figName, nPdcMax, nSpad, data_path, meas_time_s, head_str="", bias_str="", name="",
+                 doSavePlot=False, doSaveGif=False):
+        # before the base class, which draws the plots
+        nan = float("nan")
+        self.spadUcr = [[nan]*nSpad for iPdc in range(nPdcMax)]
+        self.spadCcr = [[nan]*nSpad for iPdc in range(nPdcMax)]
+        self.spadZpp = {item: [[nan]*nSpad for iPdc in range(nPdcMax)] for item in self.zppColumns}
+        super().__init__(figName, nPdcMax, nSpad, data_path, meas_time_s, head_str, bias_str, name,
+                         doSavePlot, doSaveGif)
+
+    def initPlot(self):
+        super().initPlot()
+        ucr, ccr = self.axes.flat[self.axUcr], self.axes.flat[self.axCcr]
+        self.hscatterUcr = [None]*self.nPdcMax
+        self.hscatterCcr = [None]*self.nPdcMax
+        for iPdc in range(self.nPdcMax):
+            for ax, handles, data in ((ucr, self.hscatterUcr, self.spadUcr), (ccr, self.hscatterCcr, self.spadCcr)):
+                handles[iPdc] = ax.scatter(self.spadIdx, data[iPdc], facecolors='none',
+                                           edgecolors=self.colors[iPdc], linewidth=1.5, label=self.label[iPdc])
+        ucr.title.set_text("UCR as a function of the SPAD index")
+        ucr.set_ylabel("UCR (cps)")
+        ccr.title.set_text("CCR as a function of the SPAD index")
+        ccr.set_ylabel("CCR (%)")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ucr.set_yscale('log')
+        ucr.set_ylim(1, 10)   # until there is a UCR, a log axis of only NaN has no valid limits
+        ccr.set_ylim(0, 1)
+        for ax in (ucr, ccr):
+            ax.set_xlabel("SPAD Index")
+            if self.nSpad <= 64:
+                ax.set_xticks(np.arange(0, 65, 8))
+                ax.set_xlim(self.axes.flat[self.axTcr].get_xlim())
+                ax.xaxis.set_minor_locator(mticker.MultipleLocator(1))
+            else:
+                ax.set_xticks(np.arange(0, 4097, 500))
+                ax.set_xlim(-100, 4200)
+                ax.xaxis.set_minor_locator(mticker.MultipleLocator(100))
+            ax.tick_params(which="both", direction="in", top=True, right=True)
+            ax.grid(visible=True, which="both", alpha=0.2)
+        self.updateLegend()
+
+    def updateLegend(self):
+        super().updateLegend()
+        for ax in (self.axes.flat[self.axUcr], self.axes.flat[self.axCcr]):
+            if any(label for label in ax.get_legend_handles_labels()[1]):
+                ax.legend()
+
+    def updatePlot(self, iPdc=None):
+        if self.current_pixel_index >= 0:
+            for i in range(self.nPdcMax) if iPdc is None else [iPdc]:
+                label = self.label[i] if self.pdcValid[i] else ''
+                for handles, data in ((self.hscatterUcr, self.spadUcr), (self.hscatterCcr, self.spadCcr)):
+                    handles[i].set_label(label)
+                    if self.pdcValid[i]:
+                        handles[i].set_offsets(np.c_[self.spadIdx, data[i]])
+            set_lim(self.axes.flat[self.axUcr], self.spadUcr)
+            ccrMax = np.nanmax([v for row in self.spadCcr for v in row], initial=0.0)
+            self.axes.flat[self.axCcr].set_ylim(0, ccrMax*1.1 if ccrMax > 0 else 1)
+        super().updatePlot(iPdc)
+
+    def newData(self, iPdc, iSpad, avg, zpp=None):
+        super().newData(iPdc, iSpad, avg, zpp)
+        if avg < 0 or zpp is None:
+            return
+        self.spadUcr[iPdc][iSpad] = clean(zpp.UCR)
+        self.spadCcr[iPdc][iSpad] = 100*clean(zpp.CCR)
+        for item in self.zppColumns:
+            self.spadZpp[item][iPdc][iSpad] = clean(getattr(zpp, item))
+
+    def summary(self, iPdc):
+        """
+        median TCR, UCR and CCR of the SPADs that have them
+        """
+        med = lambda data: np.nanmedian(data) if np.isfinite(data).any() else float("nan")
+        return (f"median TCR = {med(np.array(self.spadTcr[iPdc])[np.array(self.spadValid[iPdc], dtype=bool)]):.1f} cps, "
+                f"UCR = {med(np.array(self.spadUcr[iPdc])):.1f} cps, CCR = {med(np.array(self.spadCcr[iPdc])):.2f} % "
+                f"({int(np.isfinite(self.spadUcr[iPdc]).sum())} of {self.countValidSpads(iPdc)} SPADs have a UCR)")
+
+    def extraColumns(self, iPdc):
+        # counts are stored whole, the CSV float format would round them to 4 digits
+        counts = lambda data: pd.array([None if np.isnan(v) else int(v) for v in data], dtype="Int64")
+        return ([(f"SPAD_UCR{iPdc}", self.spadUcr[iPdc]), (f"SPAD_CCR{iPdc}", self.spadCcr[iPdc])]
+                + [(f"SPAD_{item}{iPdc}", counts(self.spadZpp[item][iPdc])) for item in self.zppColumns])
 
 
 def set_lim(ax, data):
